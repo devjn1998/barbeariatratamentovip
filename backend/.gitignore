@@ -1,0 +1,47 @@
+# Dependências
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Arquivos de build
+/dist
+/build
+/out
+
+# Logs
+logs
+*.log
+
+# Arquivos temporários
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+.tmp
+.temp
+
+# Cache
+.npm
+.eslintcache
+.cache
+.parcel-cache
+
+# Arquivos de cobertura de teste
+coverage/
+
+# Firebase
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+
+# Mercado Pago
+mp-debug.log
