@@ -1,3 +1,202 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom animations and effects */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+/* Animation utility classes */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slideInFromRight 0.5s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Staggered animations */
+.stagger-1 {
+  animation-delay: 100ms;
+}
+.stagger-2 {
+  animation-delay: 200ms;
+}
+.stagger-3 {
+  animation-delay: 300ms;
+}
+.stagger-4 {
+  animation-delay: 400ms;
+}
+.stagger-5 {
+  animation-delay: 500ms;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Hover effects */
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+.hover-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.6s;
+}
+
+.hover-shine:hover::after {
+  transform: translateX(100%);
+}
+
+/* Button styles */
+.btn-primary {
+  @apply bg-gradient-to-r from-amber-500 to-amber-600 text-white py-2 px-4 rounded-lg 
+         hover:from-amber-600 hover:to-amber-700 transition-all shadow-md;
+}
+
+.btn-secondary {
+  @apply border-2 border-amber-500 text-amber-500 py-2 px-4 rounded-lg 
+         hover:bg-amber-500 hover:text-white transition-all;
+}
+
+.btn-outline {
+  @apply border border-amber-500 text-amber-500 py-2 px-4 rounded-lg 
+         hover:bg-amber-500 hover:text-white transition-all;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-lg shadow-md overflow-hidden;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg;
+}
+
+/* Gradient text */
+.gradient-text {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-amber-600;
+}
+
+/* Loading shimmer effect */
+.shimmer-bg {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Glass effect */
+.glass-effect {
+  @apply bg-white bg-opacity-20 backdrop-filter backdrop-blur-lg rounded-xl border border-white border-opacity-20;
+}
+
+/* Text shadow for better contrast on images */
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Mobile menu transitions */
+.mobile-menu-enter {
+  opacity: 0;
+  transform: translateX(-100%);
+}
+
+.mobile-menu-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.mobile-menu-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.mobile-menu-exit-active {
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity 300ms, transform 300ms;
+}
