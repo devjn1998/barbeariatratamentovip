@@ -6,18 +6,31 @@ export default function PaginaConfirmacao() {
   const servico = searchParams.get("service");
   const nome = searchParams.get("name");
   const paymentId = searchParams.get("payment");
+  const status = searchParams.get("status");
+
+  const isPending = status === "pending";
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16">
       <div className="bg-white shadow-lg rounded-xl p-12 text-center space-y-8">
         <h1 className="text-4xl font-serif font-bold">
-          Confirmação de Agendamento
+          {isPending ? "Agendamento Recebido" : "Confirmação de Agendamento"}
         </h1>
 
-        <div className="bg-green-50 border-2 border-green-500 text-green-700 px-6 py-4 rounded-xl">
-          <p className="text-2xl font-bold mb-2">Agendamento Confirmado!</p>
-          <p className="text-lg">Seu horário foi reservado com sucesso.</p>
-        </div>
+        {isPending ? (
+          <div className="bg-orange-50 border-2 border-orange-500 text-orange-700 px-6 py-4 rounded-xl">
+            <p className="text-2xl font-bold mb-2">Agendamento Quase Lá!</p>
+            <p className="text-lg">
+              Seu horário foi reservado. O pagamento será realizado no dia do
+              atendimento.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-green-50 border-2 border-green-500 text-green-700 px-6 py-4 rounded-xl">
+            <p className="text-2xl font-bold mb-2">Agendamento Confirmado!</p>
+            <p className="text-lg">Seu horário foi reservado com sucesso.</p>
+          </div>
+        )}
 
         <div className="space-y-6 py-8">
           {nome && (
@@ -37,18 +50,34 @@ export default function PaginaConfirmacao() {
             <p className="text-2xl font-bold">{servico}</p>
           </div>
 
-          {paymentId && (
+          {paymentId && !isPending && (
             <div className="border-b border-gray-100 pb-4">
-              <p className="text-gray-500 mb-2">Código do Pagamento</p>
+              <p className="text-gray-500 mb-2">Código do Pagamento (PIX)</p>
               <p className="text-lg">{paymentId}</p>
             </div>
           )}
+
+          {/* Mostrar status do pagamento */}
+          <div className="border-b border-gray-100 pb-4">
+            <p className="text-gray-500 mb-2">Status do Pagamento</p>
+            <p
+              className={`text-2xl font-bold ${
+                isPending ? "text-orange-600" : "text-green-600"
+              }`}
+            >
+              {isPending
+                ? "Aguardando Pagamento (Presencial)"
+                : "Pagamento Confirmado (PIX)"}
+            </p>
+          </div>
         </div>
 
         <p className="text-xl text-gray-600">
           Obrigado por escolher a Barbearia Andin.
           <br />
-          Estamos ansiosos para recebê-lo!
+          {isPending
+            ? "Lembre-se de efetuar o pagamento no dia."
+            : "Estamos ansiosos para recebê-lo!"}
         </p>
 
         <Link

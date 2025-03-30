@@ -11,7 +11,6 @@ import Agendamentos from "./pages/admin/Agendamentos";
 import Dashboard from "./pages/admin/Dashboard";
 import LimpezaDados from "./pages/admin/LimpezaDados";
 import Login from "./pages/admin/Login";
-import Pagamentos from "./pages/admin/Pagamentos";
 import HomePage from "./pages/home";
 import PaymentPage from "./payment/page";
 import ServicesPage from "./services/page";
@@ -83,16 +82,6 @@ function App() {
               <ProtectedRoute>
                 <AdminLayout>
                   <Agendamentos />
-                </AdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/pagamentos"
-            element={
-              <ProtectedRoute>
-                <AdminLayout>
-                  <Pagamentos />
                 </AdminLayout>
               </ProtectedRoute>
             }

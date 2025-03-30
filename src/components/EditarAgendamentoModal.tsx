@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { updateAppointment } from "../services/appointments";
-import { NormalizedAppointment } from "../types/appointment";
+import { AppointmentStatus, NormalizedAppointment } from "../types/appointment";
 
 interface EditarAgendamentoModalProps {
   agendamento: NormalizedAppointment;
@@ -26,6 +26,18 @@ export default function EditarAgendamentoModal({
   });
   const [loading, setLoading] = useState(false);
 
+  // Atualizar formData se o agendamento prop mudar
+  useEffect(() => {
+    setFormData({
+      date: agendamento.date,
+      time: agendamento.time,
+      clientName: agendamento.clientName,
+      clientPhone: agendamento.clientPhone,
+      service: agendamento.service,
+      status: agendamento.status,
+    });
+  }, [agendamento]);
+
   // Manipulador de mudança de campo
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -44,11 +56,22 @@ export default function EditarAgendamentoModal({
     try {
       setLoading(true);
 
+      // Preparar dados para atualização, incluindo o status
+      const updateData = {
+        date: formData.date,
+        time: formData.time,
+        clientName: formData.clientName,
+        clientPhone: formData.clientPhone,
+        service: formData.service,
+        status: formData.status,
+      };
+
       // Atualizar agendamento
-      await updateAppointment(agendamento.id, formData);
+      await updateAppointment(agendamento.id, updateData);
 
       toast.success("Agendamento atualizado com sucesso!");
       onSave();
+      onClose();
     } catch (error) {
       console.error("Erro ao atualizar agendamento:", error);
       toast.error("Erro ao atualizar agendamento");
@@ -146,9 +169,9 @@ export default function EditarAgendamentoModal({
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
               required
             >
-              <option value="agendado">Agendado</option>
-              <option value="concluido">Concluído</option>
-              <option value="cancelado">Cancelado</option>
+              <option value="aguardando pagamento">Aguardando Pagamento</option>
+              <option value="confirmado">Confirmado</option>
+              <option value={AppointmentStatus.CANCELED}>Cancelado</option>
             </select>
           </div>
 

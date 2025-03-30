@@ -11,7 +11,7 @@ import api from "./api";
  */
 export async function getAllAppointments(): Promise<NormalizedAppointment[]> {
   try {
-    const { data } = await api.get("/api/agendamentos");
+    const { data } = await api.get("/api/agendamentos/all");
 
     // Normalizar dados
     return Array.isArray(data)
