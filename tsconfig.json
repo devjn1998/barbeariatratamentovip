@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -16,7 +15,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node", "react", "react-dom", "react-router-dom"]
+    "types": ["node", "react", "react-dom", "react-router-dom"],
+    "lib": ["dom", "es2016"]
   },
   "include": ["src"]
 }
