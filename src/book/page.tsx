@@ -45,6 +45,7 @@ export default function PaginaAgendamento() {
     []
   );
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
+  const [escolhendoPagamento, setEscolhendoPagamento] = useState(false);
   const navegar = useNavigate();
 
   // Verificar disponibilidade de horários quando a data é alterada
@@ -224,28 +225,97 @@ export default function PaginaAgendamento() {
       if (!horarioDisponivel) {
         toast.error("Este horário já foi reservado. Por favor, escolha outro.");
         setLoading(false);
-        // Recarregar horários disponíveis
         await carregarHorariosDisponiveis();
         return;
       }
 
-      // 2. NÃO salvamos o agendamento ainda - apenas redirecionamos para pagamento
-      // O agendamento será criado apenas após o pagamento ser confirmado
-      console.log("Horário disponível! Redirecionando para pagamento...");
-
-      // 3. Redirecionar para a página de pagamento com os dados do agendamento
-      navegar(
-        `/payment?date=${dataSelecionada}&hour=${horarioSelecionado}&service=${encodeURIComponent(
-          servicoSelecionado
-        )}&name=${encodeURIComponent(nome)}&phone=${encodeURIComponent(
-          telefone
-        )}`
-      );
+      // 2. Horário disponível - Mostrar opções de pagamento
+      setEscolhendoPagamento(true);
+      // Não redirecionar ainda
+      // O setLoading será desativado após a escolha do pagamento
     } catch (error: any) {
-      console.error("Erro no processo de agendamento:", error);
+      console.error("Erro na verificação de horário:", error);
       toast.error(
-        error.message || "Erro ao processar agendamento. Tente novamente."
+        error.message || "Erro ao verificar disponibilidade. Tente novamente."
       );
+      setLoading(false); // Certificar que loading é desativado em caso de erro
+    }
+    // setLoading(false) removido daqui, será controlado nas funções de escolha
+  };
+
+  // Função para lidar com a escolha de pagamento PIX
+  const handlePagarComPix = () => {
+    setLoading(true); // Ativa o loading para o redirecionamento
+    console.log("Opção PIX selecionada. Redirecionando...");
+    navegar(
+      `/payment?date=${dataSelecionada}&hour=${horarioSelecionado}&service=${encodeURIComponent(
+        servicoSelecionado
+      )}&name=${encodeURIComponent(nome)}&phone=${encodeURIComponent(telefone)}`
+    );
+    // setLoading(false); // Não precisa desativar aqui, a página vai mudar
+  };
+
+  // Função para lidar com a escolha de pagamento presencial
+  const handlePagarPresencialmente = async () => {
+    setLoading(true);
+    console.log("Opção Pagar Presencialmente selecionada.");
+
+    // Buscar o preço do serviço selecionado
+    const servicoInfo = servicos.find((s) => s.nome === servicoSelecionado);
+    const precoDoServico = servicoInfo?.preco || 0;
+
+    if (!servicoInfo) {
+      toast.error(
+        "Serviço selecionado não encontrado. Por favor, selecione novamente."
+      );
+      setLoading(false);
+      setEscolhendoPagamento(false);
+      return;
+    }
+
+    try {
+      // Preparar dados do agendamento, incluindo o preço
+      const dadosAgendamento = {
+        data: dataSelecionada,
+        horario: horarioSelecionado,
+        servico: servicoSelecionado,
+        preco: precoDoServico, // Adicionar o preço aqui
+        cliente: {
+          nome: nome,
+          telefone: telefone,
+        },
+        // Status inicial para pagamento presencial
+        status: "aguardando pagamento",
+        metodoPagamento: "dinheiro", // Adicionar informação do método
+      };
+
+      // Chamar o novo endpoint no backend (será criado depois)
+      const response = await api.post(
+        "/api/agendamentos/criar-pendente",
+        dadosAgendamento
+      );
+
+      if (response.status === 201 && response.data && response.data.id) {
+        console.log("Agendamento pendente criado:", response.data);
+        toast.success("Agendamento realizado! Pague no dia do serviço.");
+        // Redirecionar para confirmação, indicando pagamento pendente
+        navegar(
+          `/confirm?hour=${horarioSelecionado}&service=${encodeURIComponent(
+            servicoSelecionado
+          )}&name=${encodeURIComponent(nome)}&status=pending`
+        );
+      } else {
+        // Tratar erro específico da resposta da API, se houver
+        const errorMsg =
+          response.data?.message || "Falha ao criar agendamento pendente.";
+        throw new Error(errorMsg);
+      }
+    } catch (error: any) {
+      console.error("Erro ao criar agendamento pendente:", error);
+      toast.error(
+        error.message || "Erro ao criar agendamento. Tente novamente."
+      );
+      setEscolhendoPagamento(false); // Voltar para o formulário se der erro
     } finally {
       setLoading(false);
     }
@@ -306,120 +376,198 @@ export default function PaginaAgendamento() {
         Agende seu Horário
       </h1>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">Seus Dados</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nome Completo
-              </label>
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                className="w-full p-2 border rounded-lg"
-                placeholder="Digite seu nome completo"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Telefone
-              </label>
-              <input
-                type="tel"
-                value={telefone}
-                onChange={handleTelefoneChange}
-                className="w-full p-2 border rounded-lg"
-                placeholder="(XX) XXXXX-XXXX"
-                required
-              />
+      {!escolhendoPagamento ? (
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">Seus Dados</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome Completo
+                </label>
+                <input
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="Digite seu nome completo"
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone
+                </label>
+                <input
+                  type="tel"
+                  value={telefone}
+                  onChange={handleTelefoneChange}
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="(XX) XXXXX-XXXX"
+                  required
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">Data e Horário</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Data
-              </label>
-              <input
-                type="date"
-                value={dataSelecionada}
-                onChange={(e) => setDataSelecionada(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
-                className="w-full p-2 border rounded-lg"
-                required
-              />
-            </div>
-
-            {loading && (
-              <div className="flex justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500"></div>
-                <span className="ml-2">
-                  Verificando horários disponíveis...
-                </span>
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">Data e Horário</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={dataSelecionada}
+                  onChange={(e) => setDataSelecionada(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                  disabled={loading}
+                />
               </div>
-            )}
 
-            <div className="grid grid-cols-3 gap-3">
-              {TODOS_HORARIOS.map((horario) => (
+              {loading && !horarioSelecionado && (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500"></div>
+                  <span className="ml-2">
+                    Verificando horários disponíveis...
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                {TODOS_HORARIOS.map((horario) => (
+                  <button
+                    type="button"
+                    key={horario}
+                    disabled={
+                      horariosIndisponiveis.includes(horario) || loading
+                    }
+                    className={`p-3 rounded-lg transition-all ${
+                      horarioSelecionado === horario
+                        ? "bg-amber-500 text-white"
+                        : !horariosIndisponiveis.includes(horario)
+                        ? "bg-gray-100 hover:bg-gray-200"
+                        : "bg-gray-300 cursor-not-allowed"
+                    }`}
+                    onClick={() => setHorarioSelecionado(horario)}
+                  >
+                    {horario}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">Escolha o Serviço</h2>
+            <div className="space-y-3">
+              {servicos.map((servico) => (
                 <button
                   type="button"
-                  key={horario}
-                  disabled={horariosIndisponiveis.includes(horario) || loading}
-                  className={`p-3 rounded-lg transition-all ${
-                    horarioSelecionado === horario
+                  key={servico.nome}
+                  disabled={loading}
+                  className={`w-full p-4 rounded-lg transition-all flex justify-between items-center ${
+                    servicoSelecionado === servico.nome
                       ? "bg-amber-500 text-white"
-                      : !horariosIndisponiveis.includes(horario)
-                      ? "bg-gray-100 hover:bg-gray-200"
-                      : "bg-gray-300 cursor-not-allowed"
+                      : "bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
                   }`}
-                  onClick={() => setHorarioSelecionado(horario)}
+                  onClick={() => setServicoSelecionado(servico.nome)}
                 >
-                  {horario}
+                  <span>{servico.nome}</span>
+                  <span>R$ {servico.preco.toFixed(2)}</span>
                 </button>
               ))}
             </div>
           </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">Escolha o Serviço</h2>
-          <div className="space-y-3">
-            {servicos.map((servico) => (
-              <button
-                type="button"
-                key={servico.nome}
-                className={`w-full p-4 rounded-lg transition-all flex justify-between items-center ${
-                  servicoSelecionado === servico.nome
-                    ? "bg-amber-500 text-white"
-                    : "bg-gray-100 hover:bg-gray-200"
-                }`}
-                onClick={() => setServicoSelecionado(servico.nome)}
+          <button
+            type="submit"
+            className={`w-full py-4 rounded-lg text-white text-lg font-bold transition-all ${
+              !formularioValido || loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-amber-500 hover:bg-amber-600"
+            }`}
+            disabled={!formularioValido || loading}
+          >
+            {loading ? "Verificando..." : "Escolher Pagamento"}
+          </button>
+        </form>
+      ) : (
+        // Seção para escolher o método de pagamento
+        <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+          <h2 className="text-2xl font-bold mb-6">Como deseja pagar?</h2>
+          <p className="mb-6 text-gray-600">
+            Você selecionou: {servicoSelecionado} em{" "}
+            {new Date(dataSelecionada).toLocaleDateString("pt-BR")} às{" "}
+            {horarioSelecionado}.
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={handlePagarComPix}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 px-6 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center"
+              disabled={loading}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 mr-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                <span>{servico.nome}</span>
-                <span>R$ {servico.preco.toFixed(2)}</span>
-              </button>
-            ))}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+              Pagar com PIX Agora
+            </button>
+            <button
+              onClick={handlePagarPresencialmente}
+              className="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-6 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center"
+              disabled={loading}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 mr-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              Pagar Presencialmente (Dinheiro)
+            </button>
+            <button
+              onClick={() => {
+                setEscolhendoPagamento(false);
+                setLoading(false);
+              }} // Volta para o form e garante que loading está false
+              className="w-full text-gray-600 hover:text-black py-2 mt-4"
+              disabled={loading}
+            >
+              Voltar e alterar dados
+            </button>
           </div>
+          {loading && ( // Indicador de loading durante a chamada da API de agendamento pendente
+            <div className="flex justify-center py-4 mt-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500"></div>
+              <span className="ml-2">Processando agendamento...</span>
+            </div>
+          )}
         </div>
-
-        <button
-          type="submit"
-          className={`w-full py-4 rounded-lg text-white text-lg font-bold transition-all ${
-            !formularioValido || loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-amber-500 hover:bg-amber-600"
-          }`}
-          disabled={!formularioValido || loading}
-        >
-          {loading ? "Processando..." : "Confirmar Agendamento"}
-        </button>
-      </form>
+      )}
     </div>
   );
 }

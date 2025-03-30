@@ -1,40 +1,28 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import {
-  Appointment,
-  carregarTodosAgendamentos,
-} from "../../data/appointments";
-import { listarPagamentos } from "../../services/payment";
-import { NormalizedPayment } from "../../types/payment";
+import { getAllAppointments } from "../../services/appointments";
+import { NormalizedAppointment } from "../../types/appointment";
 
-// Interface unificada para dashboard
+// Interface atualizada para as novas métricas
 interface DashboardStats {
   totalAgendamentos: number;
   agendamentosHoje: number;
-  agendamentosPendentes: number;
-  agendamentosConcluidos: number;
-  pagamentosPendentes: number;
-  pagamentosAprovados: number;
+  agendamentosAguardandoPagamento: number;
+  agendamentosConfirmados: number;
   faturamentoTotal: number;
-  faturamentoMes: number;
 }
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalAgendamentos: 0,
     agendamentosHoje: 0,
-    agendamentosPendentes: 0,
-    agendamentosConcluidos: 0,
-    pagamentosPendentes: 0,
-    pagamentosAprovados: 0,
+    agendamentosAguardandoPagamento: 0,
+    agendamentosConfirmados: 0,
     faturamentoTotal: 0,
-    faturamentoMes: 0,
   });
   const [loading, setLoading] = useState(true);
-
-  // Tipagem correta para os próximos agendamentos
   const [proximosAgendamentos, setProximosAgendamentos] = useState<
-    Appointment[]
+    NormalizedAppointment[]
   >([]);
 
   useEffect(() => {
@@ -42,136 +30,98 @@ export default function Dashboard() {
       try {
         setLoading(true);
 
-        // Carregar agendamentos e pagamentos
-        const [agendamentos, pagamentos] = await Promise.all([
-          carregarTodosAgendamentos(),
-          listarPagamentos(),
-        ]);
+        // Carregar apenas agendamentos
+        const agendamentos = await getAllAppointments();
 
-        // Log para depuração
-        console.log("📊 DEBUG Dashboard: Dados carregados");
-        console.log("- Agendamentos brutos:", agendamentos.length);
-        console.log("- Pagamentos brutos:", pagamentos.length);
-
-        // Filtrar agendamentos inválidos
-        const agendamentosValidos = agendamentos.filter((a) => {
-          // Verificar se o agendamento tem os campos obrigatórios
-          const valido = a && a.id && a.data && a.status;
-          if (!valido) {
-            console.log("⚠️ Agendamento inválido encontrado:", a);
-          }
-          return valido;
-        });
-
-        console.log("- Agendamentos válidos:", agendamentosValidos.length);
+        console.log(
+          "📊 DEBUG Dashboard: Agendamentos carregados",
+          agendamentos.length
+        );
 
         // Data de hoje no formato YYYY-MM-DD
         const hoje = new Date().toISOString().split("T")[0];
 
-        // Calcular estatísticas com logs detalhados
-        const agendamentosHoje = agendamentosValidos.filter((a) => {
-          const match = a.data === hoje;
-          if (match) console.log(`- Agendamento para hoje:`, a);
-          return match;
-        }).length;
+        // Calcular novas estatísticas
+        let totalAgendamentos = agendamentos.length;
+        let agendamentosHoje = 0;
+        let agendamentosAguardandoPagamento = 0;
+        let agendamentosConfirmados = 0;
+        let faturamentoTotal = 0;
 
-        // Modificar a lógica para contar pendentes
-        // OPÇÃO 1: Forçar a contagem como 0
-        const agendamentosPendentes = 0;
+        agendamentos.forEach((agendamento) => {
+          // Verificar se é de hoje
+          if (agendamento.date === hoje) {
+            agendamentosHoje++;
+          }
 
-        // OPÇÃO 2: Filtro mais preciso (comentado por enquanto)
-        // const agendamentosPendentes = agendamentosValidos.filter((a) => {
-        //   // Filtra apenas se for agendamento de Juan e com status "agendado"
-        //   const isPendente = a.status === "agendado" &&
-        //     // Excluir o agendamento do Juan dos pendentes
-        //     !(a.cliente?.nome?.toLowerCase().includes("juan"));
-        //
-        //   if (isPendente) console.log(`- Agendamento pendente:`, a);
-        //   return isPendente;
-        // }).length;
-
-        const agendamentosConcluidos = agendamentosValidos.filter((a) => {
-          return a.status === "concluido";
-        }).length;
-
-        // Resumo dos status
-        const statusCount = agendamentosValidos.reduce((acc, a) => {
-          acc[a.status] = (acc[a.status] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        console.log("- Status de agendamentos:", statusCount);
-
-        // Tipagem explícita para os pagamentos
-        const pagamentosPendentes = pagamentos.filter(
-          (p: NormalizedPayment) => p.status === "pending"
-        ).length;
-        const pagamentosAprovados = pagamentos.filter(
-          (p: NormalizedPayment) => p.status === "approved"
-        ).length;
-
-        // Calcular faturamento
-        const faturamentoTotal = pagamentos
-          .filter((p: NormalizedPayment) => p.status === "approved")
-          .reduce(
-            (total: number, p: NormalizedPayment) =>
-              total + (p.transactionAmount || 0),
-            0
-          );
-
-        // Faturamento do mês atual
-        const mesAtual = new Date().getMonth() + 1;
-        const faturamentoMes = pagamentos
-          .filter((p: NormalizedPayment) => {
-            if (p.status !== "approved") return false;
-            const dataPagamento = new Date(p.dateCreated);
-            return dataPagamento.getMonth() + 1 === mesAtual;
-          })
-          .reduce(
-            (total: number, p: NormalizedPayment) =>
-              total + (p.transactionAmount || 0),
-            0
-          );
-
-        setStats({
-          totalAgendamentos: agendamentosValidos.length,
-          agendamentosHoje,
-          agendamentosPendentes,
-          agendamentosConcluidos,
-          pagamentosPendentes,
-          pagamentosAprovados,
-          faturamentoTotal,
-          faturamentoMes,
+          // Contar por status
+          if (agendamento.status === "aguardando pagamento") {
+            agendamentosAguardandoPagamento++;
+          } else if (agendamento.status === "confirmado") {
+            agendamentosConfirmados++;
+            // Somar faturamento apenas dos confirmados
+            faturamentoTotal += agendamento.price || 0; // Usa o campo price do NormalizedAppointment
+          }
         });
 
-        // Carregar próximos agendamentos também
-        carregarProximosAgendamentos();
+        console.log("📊 DEBUG Dashboard: Estatísticas calculadas:", {
+          totalAgendamentos,
+          agendamentosHoje,
+          agendamentosAguardandoPagamento,
+          agendamentosConfirmados,
+          faturamentoTotal,
+        });
+
+        setStats({
+          totalAgendamentos,
+          agendamentosHoje,
+          agendamentosAguardandoPagamento,
+          agendamentosConfirmados,
+          faturamentoTotal,
+        });
+
+        // Carregar próximos agendamentos
+        carregarProximosAgendamentos(agendamentos); // Passar agendamentos já carregados
       } catch (error) {
-        console.error("Erro ao carregar dados:", error);
-        toast.error("Erro ao carregar estatísticas");
+        console.error("Erro ao carregar dados do dashboard:", error);
+        toast.error("Erro ao carregar estatísticas do dashboard");
       } finally {
         setLoading(false);
       }
     }
 
-    async function carregarProximosAgendamentos() {
+    // Modificar para receber os agendamentos como argumento
+    async function carregarProximosAgendamentos(
+      todosAgendamentos: NormalizedAppointment[]
+    ) {
       try {
-        const agendamentos = await carregarTodosAgendamentos();
-
-        // Filtrar agendamentos futuros e ordenar por data
         const hoje = new Date().toISOString().split("T")[0];
-        const proximos = agendamentos
-          .filter((a) => a.data >= hoje && a.status === "agendado")
+        const agora = new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        const proximos = todosAgendamentos
+          .filter(
+            (a) =>
+              // Filtrar por hoje ou data futura E status relevante
+              a.date >= hoje &&
+              (a.status === "confirmado" || a.status === "aguardando pagamento")
+          )
           .sort((a, b) => {
             // Ordenar por data e depois por horário
-            if (a.data !== b.data) return a.data.localeCompare(b.data);
-            return a.horario.localeCompare(b.horario);
+            const dateComparison = a.date.localeCompare(b.date);
+            if (dateComparison !== 0) return dateComparison;
+            return a.time.localeCompare(b.time);
           })
+          // Filtrar para pegar apenas os de hoje que ainda não passaram, ou os de dias futuros
+          .filter((a) => a.date > hoje || (a.date === hoje && a.time >= agora))
           .slice(0, 5); // Pegar os 5 primeiros
 
         setProximosAgendamentos(proximos);
       } catch (error) {
         console.error("Erro ao carregar próximos agendamentos:", error);
+        // Não mostrar toast aqui para não ser repetitivo
       }
     }
 
@@ -190,37 +140,50 @@ export default function Dashboard() {
     <div>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
-      {/* Cards de estatísticas */}
+      {/* Cards de estatísticas ATUALIZADOS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-lg p-4 shadow">
+        {/* Agendamentos Hoje */}
+        <div className="bg-gradient-to-r from-cyan-400 to-cyan-600 text-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-medium mb-2">Agendamentos Hoje</h3>
           <p className="text-3xl font-bold">{stats.agendamentosHoje}</p>
         </div>
 
-        <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white rounded-lg p-4 shadow">
-          <h3 className="text-lg font-medium mb-2">Pendentes</h3>
-          <p className="text-3xl font-bold">{stats.agendamentosPendentes}</p>
-        </div>
-
-        <div className="bg-gradient-to-r from-green-400 to-green-600 text-white rounded-lg p-4 shadow">
-          <h3 className="text-lg font-medium mb-2">Faturamento (Mês)</h3>
+        {/* Aguardando Pagamento */}
+        <div className="bg-gradient-to-r from-orange-400 to-orange-600 text-white rounded-lg p-4 shadow">
+          <h3 className="text-lg font-medium mb-2">Aguardando Pagamento</h3>
           <p className="text-3xl font-bold">
-            R$ {stats.faturamentoMes.toFixed(2)}
+            {stats.agendamentosAguardandoPagamento}
           </p>
         </div>
 
+        {/* Confirmados */}
+        <div className="bg-gradient-to-r from-green-400 to-green-600 text-white rounded-lg p-4 shadow">
+          <h3 className="text-lg font-medium mb-2">Confirmados</h3>
+          <p className="text-3xl font-bold">{stats.agendamentosConfirmados}</p>
+        </div>
+
+        {/* Faturamento Total (baseado nos confirmados) */}
         <div className="bg-gradient-to-r from-purple-400 to-purple-600 text-white rounded-lg p-4 shadow">
-          <h3 className="text-lg font-medium mb-2">Total Agendamentos</h3>
+          <h3 className="text-lg font-medium mb-2">Faturamento (Confirmado)</h3>
+          <p className="text-3xl font-bold">
+            R$ {stats.faturamentoTotal.toFixed(2).replace(".", ",")}
+          </p>
+        </div>
+        {/* Total Agendamentos */}
+        <div className="bg-gradient-to-r from-gray-400 to-gray-600 text-white rounded-lg p-4 shadow col-span-1 md:col-span-2 lg:col-span-4">
+          <h3 className="text-lg font-medium mb-2">
+            Total Geral de Agendamentos
+          </h3>
           <p className="text-3xl font-bold">{stats.totalAgendamentos}</p>
         </div>
       </div>
 
-      {/* Próximos agendamentos */}
+      {/* Próximos agendamentos ATUALIZADO */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-bold mb-4">Próximos Agendamentos</h2>
 
         {proximosAgendamentos.length === 0 ? (
-          <p className="text-gray-500">Nenhum agendamento pendente</p>
+          <p className="text-gray-500">Nenhum próximo agendamento encontrado</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -238,22 +201,36 @@ export default function Dashboard() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Serviço
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {proximosAgendamentos.map((agendamento) => (
                   <tr key={agendamento.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(agendamento.data).toLocaleDateString("pt-BR")}
+                      {agendamento.formattedDate || agendamento.date}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {agendamento.horario}
+                      {agendamento.time}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {agendamento.cliente.nome}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {agendamento.clientName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {agendamento.servico}
+                      {agendamento.service}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          agendamento.status === "confirmado"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-orange-100 text-orange-800"
+                        }`}
+                      >
+                        {agendamento.statusText || agendamento.status}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -263,56 +240,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Estatísticas adicionais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <h2 className="text-xl font-bold mb-4">Resumo Financeiro</h2>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Faturamento Total:</span>
-              <span className="font-bold">
-                R$ {stats.faturamentoTotal.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Faturamento do Mês:</span>
-              <span className="font-bold">
-                R$ {stats.faturamentoMes.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Pagamentos Aprovados:</span>
-              <span className="font-bold">{stats.pagamentosAprovados}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Pagamentos Pendentes:</span>
-              <span className="font-bold">{stats.pagamentosPendentes}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <h2 className="text-xl font-bold mb-4">Status dos Agendamentos</h2>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Total:</span>
-              <span className="font-bold">{stats.totalAgendamentos}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Pendentes:</span>
-              <span className="font-bold">{stats.agendamentosPendentes}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Concluídos:</span>
-              <span className="font-bold">{stats.agendamentosConcluidos}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Hoje:</span>
-              <span className="font-bold">{stats.agendamentosHoje}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Outras seções do dashboard, se houver... */}
     </div>
   );
 }

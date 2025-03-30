@@ -456,127 +456,129 @@ export default function Pagamentos() {
             Nenhum pagamento encontrado.
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  ID
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Data
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Cliente
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Serviço
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Valor
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Status
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {pagamentosFiltrados.map((pagamento) => (
-                <tr key={pagamento.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {pagamento.id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {pagamento.formattedDate}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="font-medium text-gray-900">
-                      {pagamento.clientName}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {pagamento.clientPhone}
-                    </div>
-                    {pagamento.appointmentId && (
-                      <div className="text-xs text-green-500 mt-1">
-                        ✓ Agendamento vinculado
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {pagamento.service || pagamento.description}
-                    {pagamento.appointmentDate && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(
-                          pagamento.appointmentDate
-                        ).toLocaleDateString()}{" "}
-                        às {pagamento.appointmentTime}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {pagamento.formattedAmount}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        pagamento.status === "approved"
-                          ? "bg-green-100 text-green-800"
-                          : pagamento.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {pagamento.statusText}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex space-x-2">
-                      <Link
-                        to={`/admin/pagamentos/${pagamento.id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Detalhes
-                      </Link>
-                      <button
-                        onClick={() =>
-                          confirmarExclusao(
-                            pagamento.id,
-                            pagamento.clientName || "Cliente não identificado"
-                          )
-                        }
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </td>
+          <div className="bg-white p-4 rounded-lg shadow-md overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    ID
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Data
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Cliente
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Serviço
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Valor
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Status
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Ações
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {pagamentosFiltrados.map((pagamento) => (
+                  <tr key={pagamento.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {pagamento.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pagamento.formattedDate}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="font-medium text-gray-900">
+                        {pagamento.clientName}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {pagamento.clientPhone}
+                      </div>
+                      {pagamento.appointmentId && (
+                        <div className="text-xs text-green-500 mt-1">
+                          ✓ Agendamento vinculado
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pagamento.service || pagamento.description}
+                      {pagamento.appointmentDate && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          {new Date(
+                            pagamento.appointmentDate
+                          ).toLocaleDateString()}{" "}
+                          às {pagamento.appointmentTime}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pagamento.formattedAmount}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          pagamento.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : pagamento.status === "pending"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {pagamento.statusText}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex space-x-2">
+                        <Link
+                          to={`/admin/pagamentos/${pagamento.id}`}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          Detalhes
+                        </Link>
+                        <button
+                          onClick={() =>
+                            confirmarExclusao(
+                              pagamento.id,
+                              pagamento.clientName || "Cliente não identificado"
+                            )
+                          }
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
