@@ -56,7 +56,7 @@ try {
     .then(() =>
       console.log("✅ Teste de conectividade com Firestore bem-sucedido")
     )
-    .catch((err) => {
+    .catch((err: Error) => {
       console.error("❌ Erro ao conectar com Firestore:", err);
       console.log(
         "🔍 Verifique as regras de segurança do Firestore para a coleção payments"
