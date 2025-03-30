@@ -1622,6 +1622,177 @@ app.get("/api/pagamentos/:id/status", async (req, res) => {
   }
 });
 
+// Rota para criar agendamento com pagamento pendente (presencial)
+app.post("/api/agendamentos/criar-pendente", async (req, res) => {
+  try {
+    const dadosAgendamento = req.body;
+    console.log("📝 Criando agendamento pendente:", dadosAgendamento);
+
+    // 1. Validar dados recebidos
+    const validacao = validarDadosAgendamento(dadosAgendamento);
+    if (!validacao.valid) {
+      console.warn(
+        "⚠️ Tentativa de criar agendamento pendente com dados inválidos:",
+        validacao.errors
+      );
+      return res.status(400).json({
+        error: "Dados inválidos",
+        message: "Dados de agendamento inválidos",
+        details: validacao.errors,
+      });
+    }
+    if (
+      !isValidDate(dadosAgendamento.data) ||
+      !isValidTime(dadosAgendamento.horario)
+    ) {
+      return res.status(400).json({
+        error: "Formato de data/hora inválido",
+        message: "Verifique o formato da data (YYYY-MM-DD) e hora (HH:MM)",
+      });
+    }
+
+    // 2. Verificar disponibilidade do horário (REPETIR A VERIFICAÇÃO AQUI)
+    const agendamentosRef = collection(db, "agendamentos");
+    const q = query(
+      agendamentosRef,
+      where("data", "==", dadosAgendamento.data),
+      where("horario", "==", dadosAgendamento.horario),
+      // Considerar agendados e pendentes como ocupados
+      where("status", "in", ["agendado", "confirmado", "aguardando pagamento"])
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      console.warn(
+        `⏰ Horário indisponível (PENDENTE): ${dadosAgendamento.data} ${dadosAgendamento.horario}`
+      );
+      return res.status(409).json({
+        error: "Horário indisponível",
+        message:
+          "Este horário acabou de ser reservado. Por favor, escolha outro.",
+      });
+    }
+
+    // 3. Obter o preço do serviço (necessário buscar dos dados de serviço)
+    // TODO: Implementar busca do preço do serviço ou receber do frontend
+    const precoServico = dadosAgendamento.preco || 0; // Usar preço enviado ou default 0
+
+    // 4. Criar o objeto de agendamento
+    const agendamentoId = `cash_${Date.now()}`;
+    const dadosParaSalvar = {
+      id: agendamentoId,
+      data: dadosAgendamento.data,
+      horario: dadosAgendamento.horario,
+      servico: dadosAgendamento.servico,
+      preco: precoServico,
+      cliente: {
+        nome: dadosAgendamento.cliente.nome,
+        telefone: dadosAgendamento.cliente.telefone,
+        // email é opcional
+        ...(dadosAgendamento.cliente.email && {
+          email: dadosAgendamento.cliente.email,
+        }),
+      },
+      status: "aguardando pagamento", // Status específico para pagamento presencial
+      metodoPagamento: "dinheiro",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      // Não associar a um paymentId do Mercado Pago
+    };
+
+    // 5. Salvar na coleção 'agendamentos'
+    const agendamentoRef = doc(db, "agendamentos", agendamentoId);
+    await setDoc(agendamentoRef, dadosParaSalvar);
+
+    console.log(
+      `✅ Agendamento pendente criado com sucesso. ID: ${agendamentoId}`
+    );
+
+    // 6. Retornar sucesso
+    return res.status(201).json({
+      ...dadosParaSalvar,
+      message: "Agendamento criado com sucesso. Pagamento pendente.",
+    });
+  } catch (error: any) {
+    console.error("❌ Erro ao criar agendamento pendente:", error);
+    return res.status(500).json({
+      error: "Erro ao criar agendamento",
+      message:
+        error.message || "Ocorreu um erro interno ao processar sua solicitação",
+    });
+  }
+});
+
+// Rota PUT para ATUALIZAR um agendamento existente
+app.put("/api/agendamentos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dadosAtualizados = req.body;
+    console.log(`🔄 Atualizando agendamento ID: ${id}`, dadosAtualizados);
+
+    // Validar dados recebidos (opcional, mas recomendado)
+    // Você pode criar uma função `validarDadosAtualizacaoAgendamento` se necessário
+    if (!dadosAtualizados) {
+      return res
+        .status(400)
+        .json({ error: "Dados de atualização não fornecidos" });
+    }
+    // Validar status se ele foi enviado
+    const statusValidos = ["aguardando pagamento", "confirmado", "cancelado"];
+    if (
+      dadosAtualizados.status &&
+      !statusValidos.includes(dadosAtualizados.status)
+    ) {
+      return res
+        .status(400)
+        .json({ error: `Status inválido: ${dadosAtualizados.status}` });
+    }
+    // Validar data/hora se foram enviados
+    if (dadosAtualizados.data && !isValidDate(dadosAtualizados.data)) {
+      return res.status(400).json({ error: "Formato de data inválido" });
+    }
+    if (dadosAtualizados.horario && !isValidTime(dadosAtualizados.horario)) {
+      return res.status(400).json({ error: "Formato de horário inválido" });
+    }
+
+    // Referência ao documento no Firestore
+    const agendamentoRef = doc(db, "agendamentos", id);
+
+    // Verificar se o agendamento existe
+    const docSnapshot = await getDoc(agendamentoRef);
+    if (!docSnapshot.exists()) {
+      console.log(`❌ Agendamento ${id} não encontrado para atualização`);
+      return res.status(404).json({ error: "Agendamento não encontrado" });
+    }
+
+    // Preparar dados para atualização (incluindo timestamp)
+    const dadosParaSalvar = {
+      ...dadosAtualizados,
+      updatedAt: serverTimestamp(),
+    };
+
+    // Atualizar o documento
+    await setDoc(agendamentoRef, dadosParaSalvar, { merge: true }); // Usar merge: true para não sobrescrever campos não enviados
+
+    console.log(`✅ Agendamento ${id} atualizado com sucesso`);
+
+    // Retornar o agendamento atualizado
+    const agendamentoAtualizado = (await getDoc(agendamentoRef)).data();
+    return res.json({
+      id: id,
+      ...agendamentoAtualizado,
+      message: "Agendamento atualizado com sucesso",
+    });
+  } catch (error: any) {
+    console.error(`❌ Erro ao atualizar agendamento ${req.params.id}:`, error);
+    return res.status(500).json({
+      error: "Erro ao atualizar agendamento",
+      message:
+        error.message || "Ocorreu um erro interno ao processar sua solicitação",
+    });
+  }
+});
+
 // Porta de escuta para o servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

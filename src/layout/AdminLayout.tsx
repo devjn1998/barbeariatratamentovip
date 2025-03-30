@@ -245,6 +245,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     Agendamentos
                   </Link>
                 </li>
+                {/* Remover o item de menu Pagamentos */}
+                {/*
                 <li>
                   <Link
                     to="/admin/pagamentos"
@@ -274,6 +276,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     Pagamentos
                   </Link>
                 </li>
+                */}
                 <li>
                   <Link
                     to="/admin/limpeza-dados"

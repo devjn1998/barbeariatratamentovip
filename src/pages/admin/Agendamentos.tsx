@@ -6,7 +6,10 @@ import {
   getAllAppointments,
   getAppointmentsByDate,
 } from "../../services/appointments";
-import { NormalizedAppointment } from "../../types/appointment";
+import {
+  AppointmentStatus,
+  NormalizedAppointment,
+} from "../../types/appointment";
 
 // Interface para dados do agendamento
 interface Agendamento {
@@ -51,6 +54,13 @@ export default function Agendamentos() {
         dadosAgendamentos = await getAllAppointments();
       }
 
+      // Ordenar por data e horário antes de definir o estado
+      dadosAgendamentos.sort((a, b) => {
+        const dateComparison = a.date.localeCompare(b.date);
+        if (dateComparison !== 0) return dateComparison;
+        return a.time.localeCompare(b.time);
+      });
+
       setAgendamentos(dadosAgendamentos);
     } catch (error) {
       console.error("Erro ao carregar agendamentos:", error);
@@ -60,9 +70,9 @@ export default function Agendamentos() {
     }
   };
 
-  // Carregar dados iniciais
+  // Carregar dados iniciais ou quando filtroData mudar
   useEffect(() => {
-    carregarDados(filtroData);
+    carregarDados(filtroData || undefined); // Passa undefined se filtroData estiver vazio
   }, [filtroData]);
 
   // Filtrar agendamentos baseado nos critérios selecionados
@@ -153,15 +163,19 @@ export default function Agendamentos() {
 
   // Função para obter classe CSS baseada no status
   const getStatusClass = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "agendado":
-        return "bg-blue-100 text-blue-800";
-      case "concluido":
-        return "bg-green-100 text-green-800";
-      case "cancelado":
+    switch (status?.toLowerCase()) {
+      case AppointmentStatus.SCHEDULED: // 'agendado'
+      case AppointmentStatus.PENDING: // 'pendente' (novo status)
+        return "bg-yellow-100 text-yellow-800"; // Amarelo para pendente/agendado
+      case "aguardando pagamento": // Status específico para dinheiro
+        return "bg-orange-100 text-orange-800"; // Laranja para aguardando pagamento
+      case AppointmentStatus.COMPLETED: // 'concluido' ou 'confirmado'
+      case "confirmado": // Adicionar 'confirmado' explicitamente
+        return "bg-green-100 text-green-800"; // Verde para concluído/confirmado
+      case AppointmentStatus.CANCELED: // 'cancelado'
         return "bg-red-100 text-red-800";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800"; // Cinza para outros/desconhecido
     }
   };
 
@@ -169,13 +183,14 @@ export default function Agendamentos() {
   const limparFiltros = () => {
     setFiltroStatus("todos");
     setFiltroTexto("");
-    // Manter a data selecionada
+    // Manter a data selecionada ou limpar também?
+    // setFiltroData(new Date().toISOString().split("T")[0]); // Resetar para hoje
   };
 
-  // Buscar todos os agendamentos
+  // Buscar todos os agendamentos (remove o filtro de data)
   const buscarTodosAgendamentos = () => {
-    setFiltroData("");
-    carregarDados();
+    setFiltroData(""); // Limpa o filtro de data
+    carregarDados(); // Carrega todos
   };
 
   return (
@@ -222,9 +237,9 @@ export default function Agendamentos() {
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
           >
             <option value="todos">Todos</option>
-            <option value="agendado">Agendado</option>
-            <option value="concluido">Concluído</option>
-            <option value="cancelado">Cancelado</option>
+            <option value="aguardando pagamento">Aguardando Pagamento</option>
+            <option value="confirmado">Confirmado</option>
+            <option value={AppointmentStatus.CANCELED}>Cancelado</option>
           </select>
         </div>
 
@@ -272,6 +287,12 @@ export default function Agendamentos() {
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
+                  Telefone
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
                   Serviço
                 </th>
                 <th
@@ -298,37 +319,29 @@ export default function Agendamentos() {
               {agendamentosFiltrados.map((agendamento) => (
                 <tr key={agendamento.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div>{agendamento.formattedDate}</div>
+                    <div>{agendamento.formattedDate || agendamento.date}</div>
                     <div>{agendamento.time}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div>{agendamento.clientName}</div>
-                    <div className="text-xs text-gray-400">
-                      {agendamento.clientPhone}
-                    </div>
-                    {agendamento.clientEmail && (
-                      <div className="text-xs text-gray-400">
-                        {agendamento.clientEmail}
-                      </div>
-                    )}
+                    {agendamento.clientName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {agendamento.clientPhone}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {agendamento.service}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {agendamento.formattedPrice}
+                    {agendamento.formattedPrice ||
+                      formatarPreco(agendamento.price)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        agendamento.status === "agendado"
-                          ? "bg-blue-100 text-blue-800"
-                          : agendamento.status === "concluido"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(
+                        agendamento.status
+                      )}`}
                     >
-                      {agendamento.statusText}
+                      {agendamento.statusText || agendamento.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -367,7 +380,7 @@ export default function Agendamentos() {
           onClose={handleCloseEditModal}
           onSave={() => {
             handleCloseEditModal();
-            carregarDados(filtroData);
+            carregarDados(filtroData || undefined);
           }}
         />
       )}
