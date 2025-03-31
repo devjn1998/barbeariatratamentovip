@@ -10,8 +10,7 @@
     "forceConsistentCasingInFileNames": true,
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "resolveJsonModule": true,
-    "lib": ["es2016", "dom"],
-    "types": ["axios"]
+    "lib": ["es2016", "dom"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
