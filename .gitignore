@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dependências
 node_modules/
 npm-debug.log
@@ -6,11 +7,29 @@ yarn-debug.log
 
 # Arquivos de ambiente
 .env
+=======
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+>>>>>>> bfa60bdd92c6e1732ae762d7bb457cec12d92e15
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+<<<<<<< HEAD
 # Arquivos de build
 /dist
 /build
@@ -45,3 +64,8 @@ firebase-debug.*.log
 
 # Mercado Pago
 mp-debug.log
+=======
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+>>>>>>> bfa60bdd92c6e1732ae762d7bb457cec12d92e15

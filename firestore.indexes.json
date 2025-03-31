@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data", "order": "ASCENDING" },
+        { "fieldPath": "horario", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
