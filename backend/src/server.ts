@@ -43,6 +43,7 @@ app.use(
       "http://127.0.0.1:3000",
       "https://127.0.0.1:3000",
       "https://barbeariatratamentovip.vercel.app",
+      "https://barbeariatratamentovip-git-master-devjn1998s-projects.vercel.app",
       process.env.FRONTEND_URL || "http://localhost:3000",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
