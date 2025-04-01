@@ -1644,9 +1644,14 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
 app.post(
   "/api/agendamentos/criar-pendente",
   async (req: Request, res: Response) => {
+    const routeStartTime = Date.now();
+    console.log(`[Criar Pendente INÍCIO ${routeStartTime}] Rota iniciada.`);
     try {
       const dadosAgendamento = req.body;
-      console.log("📝 Criando agendamento pendente:", dadosAgendamento);
+      console.log(
+        `[Criar Pendente ${routeStartTime}] 📝 Dados recebidos:`,
+        dadosAgendamento
+      );
 
       // 1. Validar dados recebidos
       const validacao = validarDadosAgendamento(dadosAgendamento);
@@ -1671,13 +1676,15 @@ app.post(
         });
       }
 
-      // 2. Verificar disponibilidade do horário (REPETIR A VERIFICAÇÃO AQUI)
+      // 2. Verificar disponibilidade do horário
+      console.time(
+        `[Criar Pendente ${routeStartTime}] Consulta Disponibilidade`
+      );
       const agendamentosRef = collection(db, "agendamentos");
       const q = query(
         agendamentosRef,
         where("data", "==", dadosAgendamento.data),
         where("horario", "==", dadosAgendamento.horario),
-        // Considerar agendados e pendentes como ocupados
         where("status", "in", [
           "agendado",
           "confirmado",
@@ -1685,6 +1692,9 @@ app.post(
         ])
       );
       const querySnapshot = await getDocs(q);
+      console.timeEnd(
+        `[Criar Pendente ${routeStartTime}] Consulta Disponibilidade`
+      );
 
       if (!querySnapshot.empty) {
         console.warn(
@@ -1725,20 +1735,32 @@ app.post(
       };
 
       // 5. Salvar na coleção 'agendamentos'
+      console.time(`[Criar Pendente ${routeStartTime}] Escrita Firestore`);
       const agendamentoRef = doc(db, "agendamentos", agendamentoId);
       await setDoc(agendamentoRef, dadosParaSalvar);
+      console.timeEnd(`[Criar Pendente ${routeStartTime}] Escrita Firestore`);
 
       console.log(
-        `✅ Agendamento pendente criado com sucesso. ID: ${agendamentoId}`
+        `[Criar Pendente ${routeStartTime}] ✅ Agendamento pendente criado com sucesso. ID: ${agendamentoId}`
       );
 
       // 6. Retornar sucesso
+      console.log(
+        `[Criar Pendente FIM ${routeStartTime}] Rota concluída em ${
+          Date.now() - routeStartTime
+        }ms`
+      );
       return res.status(201).json({
         ...dadosParaSalvar,
         message: "Agendamento criado com sucesso. Pagamento pendente.",
       });
     } catch (error: any) {
       console.error("❌ Erro ao criar agendamento pendente:", error);
+      console.log(
+        `[Criar Pendente ERRO ${routeStartTime}] Erro na rota após ${
+          Date.now() - routeStartTime
+        }ms`
+      );
       return res.status(500).json({
         error: "Erro ao criar agendamento",
         message:
