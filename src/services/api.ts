@@ -1,5 +1,4 @@
 import axios from "axios";
-import config from "../config/api";
 
 // Criar instância base do axios com configuração apropriada para CORS
 const api = axios.create({
@@ -30,9 +29,10 @@ api.interceptors.response.use(
 // Função para verificar se o servidor está online
 export const checkServerHealth = async (): Promise<boolean> => {
   try {
-    await api.get(config.ENDPOINTS.APPOINTMENTS_ALL);
+    await api.get("/api/health");
     return true;
-  } catch {
+  } catch (error) {
+    console.error("Erro ao verificar saúde do servidor:", error);
     return false;
   }
 };
