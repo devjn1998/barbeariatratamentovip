@@ -3,7 +3,7 @@ import axios from "axios";
 // Criar instância base do axios com configuração apropriada para CORS
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || "http://localhost:3001",
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },

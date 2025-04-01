@@ -131,14 +131,22 @@ export async function checkPaymentStatus(paymentId: string) {
 // Função para criar um pagamento PIX
 export async function createPixPayment(paymentData: any) {
   try {
+    console.log(
+      "💳 [createPixPayment INÍCIO] Payload recebido no serviço:",
+      JSON.stringify(paymentData, null, 2)
+    );
+
     // Garantir que temos um token de acesso
     const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
     if (!accessToken) {
+      console.error(
+        "❌ [createPixPayment ERRO] Token de acesso não configurado"
+      );
       throw new Error("Token de acesso do Mercado Pago não configurado");
     }
 
     console.log(
-      "🔑 Usando token de acesso:",
+      "🔑 [createPixPayment Token] Usando token de acesso:",
       accessToken.substring(0, 10) + "..."
     );
 
@@ -178,10 +186,14 @@ export async function createPixPayment(paymentData: any) {
       );
     }
 
+    console.log(
+      `💰 [createPixPayment Valor] Valor final determinado: ${valorFinal}`
+    );
+
     // Validação final antes de continuar
     if (valorFinal === null || isNaN(valorFinal) || valorFinal <= 0) {
       const errorMsg = `Valor inválido ou não especificado para pagamento: ${valorFinal}`;
-      console.error(`❌ ${errorMsg}`);
+      console.error(`❌ [createPixPayment ERRO Validação] ${errorMsg}`);
       throw new Error(errorMsg);
     }
 
@@ -225,40 +237,45 @@ export async function createPixPayment(paymentData: any) {
       `💰 Valor final para pagamento: ${valorFinal} (${typeof valorFinal})`
     );
     console.log(
-      "📝 Payload final para Mercado Pago:",
+      "📝 [createPixPayment Payload MP] Payload final para API MP:",
       JSON.stringify(mercadoPagoPayload.body, null, 2)
     );
 
-    // Chamada direta com o payload conforme documentação do Mercado Pago
     try {
-      // O SDK do Mercado Pago espera os dados no formato { body: {...} }
+      console.log(
+        "📡 [createPixPayment Chamando MP] Enviando requisição para Mercado Pago..."
+      );
       const result = await payment.create(mercadoPagoPayload);
-
-      console.log("✅ Pagamento PIX criado com sucesso. ID:", result.id);
-      console.log("📊 Status do pagamento:", result.status);
+      console.log(
+        "✅ [createPixPayment MP OK] Resposta do Mercado Pago:",
+        JSON.stringify(result, null, 2)
+      );
 
       if (result.point_of_interaction?.transaction_data) {
-        console.log("📱 QR Code gerado com sucesso");
+        console.log("📱 [createPixPayment QR Code] QR Code gerado com sucesso");
       } else {
-        console.warn("⚠️ QR Code não foi gerado na resposta");
+        console.warn(
+          "⚠️ [createPixPayment QR Code] QR Code não foi gerado na resposta"
+        );
       }
 
       return result;
     } catch (paymentError: any) {
-      // Log detalhado de erros do Mercado Pago
+      console.error(
+        "❌ [createPixPayment MP ERRO] Falha na chamada para API MP:",
+        paymentError
+      );
       if (paymentError.cause) {
         console.error(
-          "❌ Erro detalhado do Mercado Pago:",
+          "❌ [createPixPayment MP ERRO Detalhes]:",
           JSON.stringify(paymentError.cause, null, 2)
         );
       }
-
-      // Repassar o erro para que seja tratado adequadamente
-      throw paymentError;
+      throw paymentError; // Re-lançar o erro
     }
   } catch (error) {
-    console.error("❌ Erro ao criar pagamento PIX:", error);
-    throw error;
+    console.error("❌ [createPixPayment ERRO GERAL]:", error);
+    throw error; // Re-lançar o erro
   }
 }
 
