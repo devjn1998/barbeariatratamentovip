@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import {
-  verificarDisponibilidade,
-  verificarHorarioDisponivel,
-} from "../data/appointments";
 import { servicos } from "../data/services";
 import api from "../services/api";
 
@@ -50,40 +46,46 @@ export default function PaginaAgendamento() {
 
   // Verificar disponibilidade de horários quando a data é alterada
   useEffect(() => {
-    if (!dataSelecionada) return;
+    if (!dataSelecionada) {
+      setHorariosIndisponiveis([]);
+      setHorariosDisponiveis(TODOS_HORARIOS);
+      return; // Limpa os horários se a data for desmarcada
+    }
 
-    async function verificarHorarios() {
+    async function verificarHorariosOcupados(data: string) {
       setLoading(true);
       try {
-        const indisponiveis: string[] = [];
+        console.log(`Buscando horários ocupados para ${data}...`);
+        // FAZ APENAS UMA CHAMADA PARA A API
+        const response = await api.get(`/api/disponibilidade?data=${data}`);
+        const resultado = response.data;
+        const ocupados = resultado.horariosOcupados || [];
 
-        // Usar a constante global TODOS_HORARIOS
-        for (const horario of TODOS_HORARIOS) {
-          const disponivel = await verificarDisponibilidade(
-            dataSelecionada,
-            horario
-          );
-          if (!disponivel) {
-            indisponiveis.push(horario);
-          }
-        }
+        console.log(`Horários ocupados recebidos para ${data}:`, ocupados);
+        setHorariosIndisponiveis(ocupados); // Atualiza o estado com os ocupados
 
-        setHorariosIndisponiveis(indisponiveis);
-
-        // Atualizar lista de horários disponíveis
-        setHorariosDisponiveis(
-          TODOS_HORARIOS.filter((horario) => !indisponiveis.includes(horario))
-        );
+        // Calcula disponíveis baseado nos ocupados
+        const disponiveis = TODOS_HORARIOS.filter((h) => !ocupados.includes(h));
+        setHorariosDisponiveis(disponiveis); // Atualiza o estado de disponíveis
       } catch (error) {
-        console.error("Erro ao verificar horários:", error);
-        toast.error("Erro ao verificar horários disponíveis");
+        console.error("Erro ao carregar horários ocupados:", error);
+        toast.error("Erro ao carregar horários disponíveis");
+        setHorariosIndisponiveis([]); // Limpa em caso de erro
+        setHorariosDisponiveis(TODOS_HORARIOS); // Ou mostrar um estado de erro
       } finally {
         setLoading(false);
       }
     }
 
-    verificarHorarios();
-  }, [dataSelecionada]);
+    verificarHorariosOcupados(dataSelecionada);
+
+    // Configurar um intervalo para atualizar a cada 30 segundos
+    // (Opcional, considerar o impacto no backend gratuito)
+    // const intervalo = setInterval(() => {
+    //   verificarHorariosOcupados(dataSelecionada);
+    // }, 30000);
+    // return () => clearInterval(intervalo);
+  }, [dataSelecionada]); // A dependência agora é só dataSelecionada
 
   // Validar formulário
   const formularioValido =
@@ -217,30 +219,51 @@ export default function PaginaAgendamento() {
     setLoading(true);
 
     try {
-      // 1. Verificar novamente a disponibilidade do horário
-      const horarioDisponivel = await verificarHorarioDisponivel(
-        dataSelecionada,
-        horarioSelecionado
+      // 1. Verificar NOVAMENTE a disponibilidade EXATA do horário escolhido ANTES de mostrar opções
+      // Isso evita que alguém reserve enquanto o usuário escolhe o pagamento
+      const response = await api.get(
+        `/api/disponibilidade?data=${dataSelecionada}&horario=${horarioSelecionado}`
       );
-      if (!horarioDisponivel) {
-        toast.error("Este horário já foi reservado. Por favor, escolha outro.");
+      const horarioAindaDisponivel = response.data.disponivel;
+
+      if (!horarioAindaDisponivel) {
+        toast.error(
+          "Este horário foi reservado enquanto você preenchia. Por favor, escolha outro."
+        );
+        // Atualizar a lista de horários disponíveis novamente
+        const atualizarHorarios = async () => {
+          const respOcupados = await api.get(
+            `/api/disponibilidade?data=${dataSelecionada}`
+          );
+          const ocupados = respOcupados.data.horariosOcupados || [];
+          setHorariosIndisponiveis(ocupados);
+          const disponiveis = TODOS_HORARIOS.filter(
+            (h) => !ocupados.includes(h)
+          );
+          setHorariosDisponiveis(disponiveis);
+        };
+        await atualizarHorarios();
+        setHorarioSelecionado(""); // Limpa o horário selecionado
         setLoading(false);
-        await carregarHorariosDisponiveis();
         return;
       }
 
-      // 2. Horário disponível - Mostrar opções de pagamento
-      setEscolhendoPagamento(true);
-      // Não redirecionar ainda
-      // O setLoading será desativado após a escolha do pagamento
-    } catch (error: any) {
-      console.error("Erro na verificação de horário:", error);
-      toast.error(
-        error.message || "Erro ao verificar disponibilidade. Tente novamente."
+      // 2. Horário está disponível, mostrar opções de pagamento
+      console.log(
+        "Horário confirmado como disponível, mostrando opções de pagamento."
       );
-      setLoading(false); // Certificar que loading é desativado em caso de erro
+      setEscolhendoPagamento(true);
+    } catch (error: any) {
+      console.error("Erro na verificação final de horário:", error);
+      toast.error(
+        error.response?.data?.message ||
+          "Erro ao verificar disponibilidade final. Tente novamente."
+      );
+    } finally {
+      // Importante: setLoading(false) NÃO aqui, pois o usuário ainda vai escolher pagamento
+      // O loading será controlado nas funções handlePagarComPix e handlePagarPresencialmente
+      // setLoading(false); // REMOVER esta linha se existir
     }
-    // setLoading(false) removido daqui, será controlado nas funções de escolha
   };
 
   // Função para lidar com a escolha de pagamento PIX
@@ -316,55 +339,6 @@ export default function PaginaAgendamento() {
         error.message || "Erro ao criar agendamento. Tente novamente."
       );
       setEscolhendoPagamento(false); // Voltar para o formulário se der erro
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (dataSelecionada) {
-      // Carregar horários inicialmente
-      carregarHorariosDisponiveis();
-
-      // Configurar um intervalo para atualizar a cada 30 segundos
-      const intervalo = setInterval(() => {
-        carregarHorariosDisponiveis();
-      }, 30000);
-
-      return () => clearInterval(intervalo);
-    }
-  }, [dataSelecionada]);
-
-  // Função para carregar horários disponíveis
-  const carregarHorariosDisponiveis = async () => {
-    setLoading(true);
-    try {
-      // Obter horários ocupados com parâmetro anti-cache
-      const timestamp = new Date().getTime();
-
-      // Usar a API para obter os horários ocupados
-      const response = await fetch(
-        `/api/disponibilidade?data=${dataSelecionada}&_t=${timestamp}`
-      );
-      const data = await response.json();
-      const ocupados = data.horariosOcupados || [];
-
-      setHorariosIndisponiveis(ocupados);
-
-      // Filtrar horários disponíveis
-      const disponiveis = TODOS_HORARIOS.filter(
-        (horario) => !ocupados.includes(horario)
-      );
-
-      // Verificar se existe o estado para armazenar horários disponíveis
-      if (typeof setHorariosDisponiveis === "function") {
-        setHorariosDisponiveis(disponiveis);
-      } else {
-        // Caso não exista, simplesmente definir quais estão ocupados
-        setHorariosIndisponiveis(ocupados);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar horários:", error);
     } finally {
       setLoading(false);
     }

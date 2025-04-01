@@ -122,7 +122,10 @@ app.get("/api/debug/agendamentos", async (req: Request, res: Response) => {
 // Rota de pagamento
 app.post("/api/pagamentos", async (req: Request, res: Response) => {
   try {
-    console.log("📊 Recebido payload para pagamento:", req.body);
+    console.log(
+      "📊 [Pagamento INÍCIO] Payload recebido:",
+      JSON.stringify(req.body, null, 2)
+    );
 
     // Extrair dados do payload principal e do objeto original_data se existir
     const {
@@ -153,8 +156,7 @@ app.post("/api/pagamentos", async (req: Request, res: Response) => {
       telefone: originalTelefone,
     } = original_data;
 
-    console.log("ℹ️ Processando dados para Mercado Pago");
-    console.log("💲 Campos de valor detectados:", {
+    console.log("ℹ️ [Pagamento Processando] Dados normalizados:", {
       transaction_amount,
       amount,
       valor,
@@ -254,7 +256,7 @@ app.post("/api/pagamentos", async (req: Request, res: Response) => {
     }
 
     console.log(
-      "🚀 Enviando dados para Mercado Pago:",
+      "🚀 [Pagamento Chamando Serviço] Payload para createPixPayment:",
       JSON.stringify(paymentPayload, null, 2)
     );
 
@@ -263,7 +265,10 @@ app.post("/api/pagamentos", async (req: Request, res: Response) => {
       const resultado = await mercadoPagoService.createPixPayment(
         paymentPayload
       );
-      console.log("✅ Pagamento criado com sucesso, ID:", resultado.id);
+      console.log(
+        "✅ [Pagamento Serviço OK] Resultado do serviço:",
+        JSON.stringify(resultado, null, 2)
+      );
 
       // Extrair informações do PIX da resposta
       if (resultado.point_of_interaction?.transaction_data) {
@@ -348,9 +353,18 @@ app.post("/api/pagamentos", async (req: Request, res: Response) => {
         });
       }
     } catch (paymentError: any) {
-      console.error("❌ Erro específico ao criar pagamento:", paymentError);
-
-      // Retornar um erro mais detalhado e útil para o cliente
+      console.error(
+        "❌ [Pagamento Serviço ERRO] Erro ao chamar createPixPayment:",
+        paymentError
+      );
+      // Log adicional da causa, se existir
+      if (paymentError.cause) {
+        console.error(
+          "❌ [Pagamento Serviço ERRO Detalhes]:",
+          JSON.stringify(paymentError.cause, null, 2)
+        );
+      }
+      // Retornar erro...
       return res.status(500).json({
         error: "Erro ao processar pagamento",
         message:
@@ -359,8 +373,7 @@ app.post("/api/pagamentos", async (req: Request, res: Response) => {
       });
     }
   } catch (error: any) {
-    console.error("❌ Erro geral ao processar pagamento:", error);
-
+    console.error("❌ [Pagamento Rota ERRO GERAL]:", error);
     // Enviar detalhes do erro para ajudar na depuração
     res.status(500).json({
       error: "Erro ao processar pagamento",
