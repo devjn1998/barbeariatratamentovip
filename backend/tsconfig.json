@@ -10,7 +10,13 @@
     "forceConsistentCasingInFileNames": true,
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "resolveJsonModule": true,
-    "lib": ["es2016", "dom"]
+    "lib": ["es2016", "dom", "esnext"],
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*"]
+    },
+    "types": ["node", "cors", "express"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
