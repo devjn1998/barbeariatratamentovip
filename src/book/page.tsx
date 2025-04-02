@@ -350,16 +350,226 @@ export default function PaginaAgendamento() {
         Agende seu Horário
       </h1>
 
-      {/* REMOVER TEMPORARIAMENTE a condição e o formulário */}
-      {/* {!escolhendoPagamento ? (
-         <form onSubmit={handleSubmit} className="space-y-8"> ... </form>
-      ) : ( */}
+      {!escolhendoPagamento ? (
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">Seus Dados</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome Completo
+                </label>
+                <input
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="Digite seu nome completo"
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone
+                </label>
+                <input
+                  type="tel"
+                  value={telefone}
+                  onChange={handleTelefoneChange}
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="(XX) XXXXX-XXXX"
+                  required
+                  maxLength={15}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+          </div>
 
-      {/* MOSTRAR SEMPRE A SEÇÃO DE ESCOLHA DE PAGAMENTO (PARA TESTE) */}
-      <div className="bg-white rounded-lg shadow-lg p-6 text-center animate-fade-in">
-        {/* ... conteúdo da seção de escolha de pagamento ... */}
-      </div>
-      {/* )} */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">Data e Horário</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={dataSelecionada}
+                  onChange={(e) => {
+                    setDataSelecionada(e.target.value);
+                    setHorarioSelecionado("");
+                    setHorariosDisponiveis([]);
+                    setHorariosIndisponiveis([]);
+                  }}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {dataSelecionada &&
+                loading &&
+                horariosDisponiveis.length === 0 && (
+                  <div className="flex justify-center items-center py-4 text-gray-600">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-500 mr-2"></div>
+                    Carregando horários...
+                  </div>
+                )}
+
+              {dataSelecionada && !loading && (
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  {TODOS_HORARIOS.map((horario) => (
+                    <button
+                      type="button"
+                      key={horario}
+                      disabled={horariosIndisponiveis.includes(horario)}
+                      className={`p-3 rounded-lg transition-all text-center ${
+                        horarioSelecionado === horario
+                          ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1"
+                          : horariosIndisponiveis.includes(horario)
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed line-through"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                      }`}
+                      onClick={() => setHorarioSelecionado(horario)}
+                    >
+                      {horario}
+                    </button>
+                  ))}
+                  {horariosDisponiveis.length === 0 && !loading && (
+                    <p className="col-span-3 text-center text-red-500 mt-2">
+                      Nenhum horário disponível para esta data.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">Escolha o Serviço</h2>
+            <div className="space-y-3">
+              {servicos.map((servico) => (
+                <button
+                  type="button"
+                  key={servico.nome}
+                  disabled={loading}
+                  className={`w-full p-4 rounded-lg transition-all flex justify-between items-center text-left ${
+                    servicoSelecionado === servico.nome
+                      ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1"
+                      : "bg-gray-100 hover:bg-gray-200 text-gray-800 disabled:opacity-50"
+                  }`}
+                  onClick={() => setServicoSelecionado(servico.nome)}
+                >
+                  <span>{servico.nome}</span>
+                  <span className="font-medium">
+                    R$ {servico.preco.toFixed(2)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className={`w-full py-4 rounded-lg text-white text-lg font-bold transition-all flex justify-center items-center ${
+              !formularioValido || loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-amber-500 hover:bg-amber-600"
+            }`}
+            disabled={!formularioValido || loading}
+          >
+            {loading && !escolhendoPagamento ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Confirmando horário...
+              </>
+            ) : (
+              "Escolher Pagamento"
+            )}
+          </button>
+        </form>
+      ) : (
+        <div className="bg-white rounded-lg shadow-lg p-6 text-center animate-fade-in">
+          <h2 className="text-2xl font-bold mb-6">Como deseja pagar?</h2>
+          <p className="mb-6 text-gray-600">
+            Você selecionou: {servicoSelecionado} em{" "}
+            {new Date(dataSelecionada + "T00:00:00").toLocaleDateString(
+              "pt-BR",
+              { timeZone: "UTC" }
+            )}{" "}
+            às {horarioSelecionado}.
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={handlePagarComPix}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 px-6 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center disabled:opacity-70"
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  Pagar com PIX Agora
+                </>
+              )}
+            </button>
+            <button
+              onClick={handlePagarPresencialmente}
+              className="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-6 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center disabled:opacity-70"
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                  Pagar Presencialmente (Dinheiro)
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setEscolhendoPagamento(false);
+                setLoading(false);
+              }}
+              className="w-full text-gray-600 hover:text-black py-2 mt-4 disabled:opacity-50"
+              disabled={loading}
+            >
+              Voltar e alterar dados
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
