@@ -256,6 +256,7 @@ export default function PaginaAgendamento() {
       );
       setEscolhendoPagamento(true); // Mostra os botões PIX/Dinheiro
       console.log("DEBUG: Estado escolhendoPagamento definido como true.");
+      setLoading(false);
     } catch (error: any) {
       console.error("Erro na verificação final de horário:", error);
       toast.error(
