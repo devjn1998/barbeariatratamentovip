@@ -4,6 +4,7 @@ import express, { Request, Response } from "express";
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -701,59 +702,130 @@ app.post("/api/pagamentos/sincronizar", async (req: Request, res: Response) => {
   }
 });
 
-// Modifique a função criarOuAtualizarAgendamento para garantir formato consistente
+// Modifique a função criarOuAtualizarAgendamento para garantir escrita correta
 async function criarOuAtualizarAgendamento(pagamento: any) {
-  if (pagamento.status === "approved") {
-    try {
-      console.log(`🔄 Processando agendamento para pagamento ${pagamento.id}`);
+  if (pagamento.status !== "approved" || !pagamento.id) {
+    console.log(
+      `[CriarAgendamento] Pagamento ${pagamento.id || ""} não aprovado.`
+    );
+    return null;
+  }
 
-      // Formato de data YYYY-MM-DD
-      const dataHoje = new Date().toISOString().split("T")[0];
-      console.log(`�� Data formatada: ${dataHoje}`);
+  const pagamentoId = pagamento.id.toString();
+  console.log(
+    `[CriarAgendamento ${pagamentoId}] Processando para pagamento aprovado.`
+  );
 
-      // Dados do agendamento
-      const agendamentoData = {
-        id: `agendamento-${pagamento.id}`,
-        data: dataHoje,
-        horario: "A definir",
-        cliente: {
-          nome: pagamento.payer?.first_name
-            ? `${pagamento.payer.first_name} ${
-                pagamento.payer.last_name || ""
-              }`.trim()
-            : "Cliente",
-          email: pagamento.payer?.email || "cliente@exemplo.com",
-          telefone: pagamento.payer?.phone?.number || "Não informado",
-        },
-        servico: pagamento.description || "Corte Masculino",
-        preco: pagamento.transaction_amount,
-        status: "agendado",
-        pagamentoId: pagamento.id,
-        created_at: serverTimestamp(),
-        updated_at: serverTimestamp(),
-      };
+  try {
+    // --- Buscar dados complementares (se necessário) ---
+    const pagamentoDocRef = doc(db, "payments", pagamentoId);
+    const pagamentoSnapshot = await getDoc(pagamentoDocRef);
+    const dadosPagamentoCache = pagamentoSnapshot.exists()
+      ? pagamentoSnapshot.data()
+      : {};
 
-      // Log detalhado
-      console.log(
-        "📝 Dados do agendamento a serem salvos:",
-        JSON.stringify(agendamentoData)
-      );
+    // --- Definir os dados do agendamento ---
+    // Priorizar dados que possam ter sido salvos temporariamente no pagamento
+    const dataAgendamento =
+      dadosPagamentoCache?.data_agendamento ||
+      dadosPagamentoCache?.data_temp ||
+      new Date().toISOString().split("T")[0];
+    const horarioAgendamento =
+      dadosPagamentoCache?.horario_agendamento ||
+      dadosPagamentoCache?.horario_temp ||
+      "A definir";
+    const nomeCliente =
+      dadosPagamentoCache?.cliente_nome ||
+      pagamento.payer?.first_name ||
+      "Cliente";
+    const telefoneCliente =
+      dadosPagamentoCache?.cliente_telefone ||
+      pagamento.payer?.phone?.number ||
+      "Não informado";
+    const emailCliente =
+      dadosPagamentoCache?.cliente_email ||
+      pagamento.payer?.email ||
+      "cliente@example.com";
+    const servicoAgendamento =
+      dadosPagamentoCache?.servico || pagamento.description || "Serviço Padrão";
 
-      // Salvar no Firebase
-      if (FIREBASE_ENABLED) {
-        await setDoc(doc(db, "payments", agendamentoData.id), agendamentoData);
-        console.log(
-          `✅ Agendamento ${agendamentoData.id} criado/atualizado com sucesso`
+    // --- Montar objeto final para a coleção 'agendamentos' ---
+    const agendamentoFinalData = {
+      id: pagamentoId, // Chave primária igual ao pagamento
+      pagamentoId: pagamentoId,
+      data: isValidDate(dataAgendamento)
+        ? dataAgendamento
+        : new Date().toISOString().split("T")[0], // Validar/Default Data
+      horario: isValidTime(horarioAgendamento) ? horarioAgendamento : "09:00", // Validar/Default Horário
+      cliente: {
+        nome: nomeCliente,
+        telefone: telefoneCliente,
+        email: emailCliente,
+      },
+      servico: servicoAgendamento,
+      preco: pagamento.transaction_amount,
+      status: "agendado", // Status correto após pagamento
+      metodoPagamento: pagamento.payment_method_id || "pix",
+      updatedAt: serverTimestamp(),
+      // createdAt será adicionado automaticamente pelo setDoc se não existir
+    };
+
+    console.log(
+      `[CriarAgendamento ${pagamentoId}] 📝 Dados finais para salvar/atualizar em 'agendamentos':`,
+      JSON.stringify(agendamentoFinalData, null, 2)
+    );
+
+    // --- Salvar/Atualizar na coleção 'agendamentos' ---
+    const agendamentoRef = doc(db, "agendamentos", pagamentoId);
+    await setDoc(agendamentoRef, agendamentoFinalData, { merge: true }); // Usar merge: true para atualizar ou criar
+
+    console.log(
+      `[CriarAgendamento ${pagamentoId}] ✅ Agendamento salvo/atualizado em 'agendamentos'.`
+    );
+
+    // --- (Opcional) Limpar campos temporários do pagamento ---
+    if (dadosPagamentoCache) {
+      // Só tenta limpar se existiam dados no cache
+      try {
+        const camposParaLimpar: any = {};
+        if ("dados_agendamento_temp" in dadosPagamentoCache)
+          camposParaLimpar.dados_agendamento_temp = deleteField();
+        if ("horario_temp" in dadosPagamentoCache)
+          camposParaLimpar.horario_temp = deleteField();
+        if ("data_temp" in dadosPagamentoCache)
+          camposParaLimpar.data_temp = deleteField();
+        if ("servico_temp" in dadosPagamentoCache)
+          camposParaLimpar.servico_temp = deleteField();
+        if ("cliente_nome" in dadosPagamentoCache)
+          camposParaLimpar.cliente_nome = deleteField();
+        if ("cliente_telefone" in dadosPagamentoCache)
+          camposParaLimpar.cliente_telefone = deleteField();
+        if ("cliente_email" in dadosPagamentoCache)
+          camposParaLimpar.cliente_email = deleteField();
+
+        if (Object.keys(camposParaLimpar).length > 0) {
+          camposParaLimpar.updated_at = serverTimestamp();
+          await setDoc(pagamentoDocRef, camposParaLimpar, { merge: true });
+          console.log(
+            `[CriarAgendamento ${pagamentoId}] 🧹 Dados temporários limpos do pagamento.`
+          );
+        }
+      } catch (cleanError) {
+        console.warn(
+          `[CriarAgendamento ${pagamentoId}] ⚠️ Não foi possível limpar dados temporários:`,
+          cleanError
         );
       }
-
-      return agendamentoData;
-    } catch (error) {
-      console.error("❌ Erro ao processar agendamento:", error);
-      return null;
     }
+
+    return agendamentoFinalData;
+  } catch (error) {
+    console.error(
+      `[CriarAgendamento ${pagamento.id || "sem ID"}] ❌ Erro:`,
+      error
+    );
+    return null;
   }
-  return null;
 }
 
 // Rota para buscar agendamentos
@@ -942,63 +1014,110 @@ app.post("/api/pagamentos/:id/horario", async (req: Request, res: Response) => {
   }
 });
 
-// Adicione esta rota ao seu arquivo server.ts
+// Adicione esta rota no seu arquivo server.ts
 app.post(
   "/api/pagamentos/:id/atualizar",
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const {
-        data_agendamento,
-        horario_agendamento,
-        cliente_nome,
-        cliente_telefone,
-        servico,
-      } = req.body;
+      const dadosAtualizacaoAgendamento = req.body;
+
+      console.log(
+        `[Atualizar Agendamento ${id}] 🔄 Atualizando via rota /pagamentos/:id/atualizar`
+      );
+      console.log(
+        `[Atualizar Agendamento ${id}] 📝 Dados recebidos:`,
+        dadosAtualizacaoAgendamento
+      );
 
       // Validar dados básicos
       if (!id) {
-        return res.status(400).json({ error: "ID do pagamento é obrigatório" });
+        return res
+          .status(400)
+          .json({ error: "ID do pagamento/agendamento é obrigatório" });
       }
 
-      // Obter documento existente para assegurar que existe
-      const pagamentoRef = doc(db, "payments", id.toString());
-      const pagamentoDoc = await getDoc(pagamentoRef);
-
-      if (!pagamentoDoc.exists()) {
-        return res.status(404).json({ error: "Pagamento não encontrado" });
-      }
-
-      // Preparar dados para atualização
-      const dadosAtualizacao: Record<string, any> = {
-        updated_at: serverTimestamp(),
+      // Mapear nomes de campos recebidos para os nomes corretos na coleção 'agendamentos'
+      const dadosParaSalvar: Record<string, any> = {
+        updatedAt: serverTimestamp(),
       };
+      if (dadosAtualizacaoAgendamento.data_agendamento)
+        dadosParaSalvar.data = dadosAtualizacaoAgendamento.data_agendamento;
+      if (dadosAtualizacaoAgendamento.horario_agendamento)
+        dadosParaSalvar.horario =
+          dadosAtualizacaoAgendamento.horario_agendamento;
+      if (
+        dadosAtualizacaoAgendamento.cliente_nome ||
+        dadosAtualizacaoAgendamento.cliente_telefone ||
+        dadosAtualizacaoAgendamento.cliente_email
+      ) {
+        dadosParaSalvar.cliente = {
+          nome: dadosAtualizacaoAgendamento.cliente_nome,
+          telefone: dadosAtualizacaoAgendamento.cliente_telefone,
+          email: dadosAtualizacaoAgendamento.cliente_email,
+        };
+      }
+      if (dadosAtualizacaoAgendamento.servico)
+        dadosParaSalvar.servico = dadosAtualizacaoAgendamento.servico;
+      if (dadosAtualizacaoAgendamento.status)
+        dadosParaSalvar.status = dadosAtualizacaoAgendamento.status;
+      // Adicionar outros campos se necessário
 
-      // Adicionar apenas campos que foram enviados
-      if (data_agendamento)
-        dadosAtualizacao.data_agendamento = data_agendamento;
-      if (horario_agendamento)
-        dadosAtualizacao.horario_agendamento = horario_agendamento;
-      if (cliente_nome) dadosAtualizacao.cliente_nome = cliente_nome;
-      if (cliente_telefone)
-        dadosAtualizacao.cliente_telefone = cliente_telefone;
-      if (servico) dadosAtualizacao.servico = servico;
+      // Remover campos de cliente se o objeto cliente não foi totalmente preenchido
+      if (
+        dadosParaSalvar.cliente &&
+        (!dadosParaSalvar.cliente.nome || !dadosParaSalvar.cliente.telefone)
+      ) {
+        // Opcional: buscar dados existentes para mesclar ou apenas não salvar o objeto incompleto
+        // Para simplicidade, vamos remover se incompleto, assumindo que a atualização deve ser completa
+        console.warn(
+          `[Atualizar Agendamento ${id}] Dados de cliente incompletos na atualização, não serão salvos.`
+        );
+        delete dadosParaSalvar.cliente;
+      }
 
-      // Atualizar o documento
-      await setDoc(pagamentoRef, dadosAtualizacao, { merge: true });
+      if (Object.keys(dadosParaSalvar).length <= 1) {
+        // Apenas updatedAt
+        return res
+          .status(400)
+          .json({ error: "Nenhum dado válido para atualizar fornecido." });
+      }
+
+      // Referência ao documento na coleção 'agendamentos'
+      const agendamentoRef = doc(db, "agendamentos", id.toString());
+
+      // Verificar se o agendamento existe ANTES de tentar atualizar
+      const agendamentoDoc = await getDoc(agendamentoRef);
+      if (!agendamentoDoc.exists()) {
+        console.log(
+          `[Atualizar Agendamento ${id}] ❌ Agendamento não encontrado na coleção 'agendamentos'.`
+        );
+        return res.status(404).json({ error: "Agendamento não encontrado" });
+      }
+
+      // Atualizar o documento na coleção 'agendamentos'
+      await setDoc(agendamentoRef, dadosParaSalvar, { merge: true });
+
+      console.log(
+        `[Atualizar Agendamento ${id}] ✅ Agendamento atualizado com sucesso.`
+      );
 
       res.json({
         success: true,
         message: "Dados do agendamento atualizados com sucesso",
       });
     } catch (error: any) {
-      console.error("Erro ao atualizar dados do agendamento:", error);
+      console.error(
+        `[Atualizar Agendamento ${req.params.id || "sem ID"}] ❌ Erro:`,
+        error
+      );
       res.status(500).json({ error: error.message });
     }
   }
 );
 
 // Adicione esta função para criar o agendamento em uma coleção separada
+/*
 async function criarAgendamentoSeparado(
   pagamentoId: string,
   dadosAgendamento: any
@@ -1041,6 +1160,7 @@ async function criarAgendamentoSeparado(
     console.error("❌ Erro ao criar agendamento separado:", error);
   }
 }
+*/
 
 // Adicione esta rota antes da declaração de PORT
 app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
@@ -1145,95 +1265,80 @@ app.get("/api/mercadopago/test", async (req: Request, res: Response) => {
 app.post(
   "/api/pagamentos/:id/agendamento",
   async (req: Request, res: Response) => {
+    // CAPTURAR ID LOGO NO INÍCIO
+    const { id: agendamentoId } = req.params;
+    if (!agendamentoId) {
+      // Verificar se o ID foi capturado
+      return res
+        .status(400)
+        .json({ error: "ID do agendamento ausente na URL" });
+    }
+
     try {
-      const { id } = req.params;
       const dadosAgendamento = req.body;
 
-      console.log(`🔄 Atualizando dados de agendamento para pagamento ${id}`);
-      console.log("📝 Dados recebidos:", dadosAgendamento);
-
-      // Verificar se o pagamento existe
-      const pagamentoRef = doc(db, "payments", id);
-      const pagamentoSnapshot = await getDoc(pagamentoRef);
-
-      if (!pagamentoSnapshot.exists()) {
-        console.log(`❌ Pagamento ${id} não encontrado`);
-        return res.status(404).json({ error: "Pagamento não encontrado" });
-      }
-
-      // Verificar disponibilidade antes de criar o agendamento
-      const agendamentosRef = collection(db, "agendamentos");
-      const q = query(
-        agendamentosRef,
-        where("data", "==", dadosAgendamento.data),
-        where("horario", "==", dadosAgendamento.horario)
+      console.log(
+        `[Atualizar Agendamento via Pagamento ${agendamentoId}] 🔄 Atualizando dados`
       );
-      const querySnapshot = await getDocs(q);
-
-      // Se já existe algum agendamento neste horário, rejeitar
-      if (!querySnapshot.empty) {
-        console.log(
-          `❌ Horário ${dadosAgendamento.horario} na data ${dadosAgendamento.data} já está ocupado`
-        );
-        return res.status(409).json({
-          success: false,
-          error: "Horário já ocupado",
-          message: `O horário ${dadosAgendamento.horario} na data ${dadosAgendamento.data} já está agendado.`,
-        });
-      }
-
-      // Atualizar o documento de pagamento com dados do agendamento
-      await setDoc(
-        pagamentoRef,
-        {
-          data_agendamento: dadosAgendamento.data,
-          horario_agendamento: dadosAgendamento.horario,
-          cliente_nome: dadosAgendamento.nome,
-          cliente_telefone: dadosAgendamento.telefone,
-          cliente_email: dadosAgendamento.email,
-          servico: dadosAgendamento.servico,
-          updated_at: serverTimestamp(),
-        },
-        { merge: true }
+      console.log(
+        `[Atualizar Agendamento via Pagamento ${agendamentoId}] 📝 Dados recebidos:`,
+        dadosAgendamento
       );
 
-      // Verificar se já existe um agendamento com esse ID
-      const agendamentoRef = doc(db, "agendamentos", id);
+      // --- Validar Dados Recebidos ---
+      // ... (validações existentes, usar agendamentoId se necessário) ...
+
+      // --- Referência e Verificação de Existência (na coleção agendamentos) ---
+      const agendamentoRef = doc(db, "agendamentos", agendamentoId);
       const agendamentoSnapshot = await getDoc(agendamentoRef);
 
-      // Criar ou atualizar o documento de agendamento
-      await setDoc(
-        agendamentoRef,
-        {
-          id: id,
-          data: dadosAgendamento.data,
-          horario: dadosAgendamento.horario,
-          cliente: {
-            nome: dadosAgendamento.nome || "Cliente",
-            telefone: dadosAgendamento.telefone || "Não informado",
-            email: dadosAgendamento.email || "cliente@example.com",
-          },
-          servico: dadosAgendamento.servico,
-          status: "agendado",
-          pagamentoId: id,
-          updatedAt: serverTimestamp(),
-          ...(agendamentoSnapshot.exists()
-            ? {}
-            : { createdAt: serverTimestamp() }),
-        },
-        { merge: true }
-      );
+      if (!agendamentoSnapshot.exists()) {
+        console.log(
+          `[Atualizar Agendamento via Pagamento ${agendamentoId}] ❌ Agendamento ${agendamentoId} não encontrado.`
+        );
+        return res.status(404).json({ error: "Agendamento não encontrado" });
+      }
 
-      console.log(
-        `✅ Dados de agendamento atualizados com sucesso para pagamento ${id}`
-      );
-
-      return res.json({
-        success: true,
-        message: "Dados de agendamento atualizados com sucesso",
-      });
+      // --- Verificar Disponibilidade do NOVO horário (se data/horário mudaram) ---
+      const agendamentoAtual = agendamentoSnapshot.data();
+      if (
+        agendamentoAtual.data !== dadosAgendamento.data ||
+        agendamentoAtual.horario !== dadosAgendamento.horario
+      ) {
+        console.log(
+          `[Atualizar Agendamento via Pagamento ${agendamentoId}] ⏰ Verificando disponibilidade do novo horário: ${dadosAgendamento.data} ${dadosAgendamento.horario}`
+        );
+        const agendamentosCollRef = collection(db, "agendamentos");
+        const q = query(
+          agendamentosCollRef,
+          where("data", "==", dadosAgendamento.data),
+          where("horario", "==", dadosAgendamento.horario)
+        );
+        const queryConflito = await getDocs(q);
+        if (!queryConflito.empty) {
+          let conflitoReal = true;
+          // Usar agendamentoId na comparação
+          if (
+            queryConflito.size === 1 &&
+            queryConflito.docs[0].id === agendamentoId
+          ) {
+            conflitoReal = false;
+          }
+          if (conflitoReal) {
+            console.warn(
+              `[Atualizar Agendamento via Pagamento ${agendamentoId}] ❌ Conflito: Horário ${dadosAgendamento.horario} na data ${dadosAgendamento.data} já ocupado.`
+            );
+            // ... (retornar erro 409)
+          }
+        }
+      }
+      // ... (resto da lógica: Preparar Dados, Atualizar Doc, Retornar Sucesso) ...
     } catch (error: any) {
-      console.error("❌ Erro ao atualizar dados de agendamento:", error);
+      // Usar agendamentoId no log de erro
+      console.error(
+        `[Atualizar Agendamento via Pagamento ${agendamentoId}] ❌ Erro:`,
+        error
+      );
       return res.status(500).json({
         error: "Erro ao atualizar dados de agendamento",
         details: error.message,

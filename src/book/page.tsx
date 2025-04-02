@@ -216,11 +216,13 @@ export default function PaginaAgendamento() {
       return;
     }
 
-    setLoading(true);
+    setLoading(true); // <- Mostra "Verificando..."
 
     try {
-      // 1. Verificar NOVAMENTE a disponibilidade EXATA do horário escolhido ANTES de mostrar opções
-      // Isso evita que alguém reserve enquanto o usuário escolhe o pagamento
+      // Verificação final de disponibilidade ANTES de mostrar opções
+      console.log(
+        `Verificando disponibilidade final para ${dataSelecionada} às ${horarioSelecionado}...`
+      );
       const response = await api.get(
         `/api/disponibilidade?data=${dataSelecionada}&horario=${horarioSelecionado}`
       );
@@ -228,9 +230,9 @@ export default function PaginaAgendamento() {
 
       if (!horarioAindaDisponivel) {
         toast.error(
-          "Este horário foi reservado enquanto você preenchia. Por favor, escolha outro."
+          "Ops! Este horário foi reservado enquanto você preenchia. Por favor, escolha outro."
         );
-        // Atualizar a lista de horários disponíveis novamente
+        // Atualizar a lista de horários para refletir a mudança
         const atualizarHorarios = async () => {
           const respOcupados = await api.get(
             `/api/disponibilidade?data=${dataSelecionada}`
@@ -243,32 +245,29 @@ export default function PaginaAgendamento() {
           setHorariosDisponiveis(disponiveis);
         };
         await atualizarHorarios();
-        setHorarioSelecionado(""); // Limpa o horário selecionado
-        setLoading(false);
-        return;
+        setHorarioSelecionado(""); // Limpa a seleção de horário inválida
+        setLoading(false); // Termina o loading aqui
+        return; // Interrompe o fluxo
       }
 
-      // 2. Horário está disponível, mostrar opções de pagamento
+      // Se chegou aqui, o horário está disponível
       console.log(
         "Horário confirmado como disponível, mostrando opções de pagamento."
       );
-      setEscolhendoPagamento(true);
+      setEscolhendoPagamento(true); // Mostra os botões PIX/Dinheiro
     } catch (error: any) {
       console.error("Erro na verificação final de horário:", error);
       toast.error(
         error.response?.data?.message ||
-          "Erro ao verificar disponibilidade final. Tente novamente."
+          "Erro ao verificar disponibilidade. Tente novamente."
       );
-    } finally {
-      // Importante: setLoading(false) NÃO aqui, pois o usuário ainda vai escolher pagamento
-      // O loading será controlado nas funções handlePagarComPix e handlePagarPresencialmente
-      // setLoading(false); // REMOVER esta linha se existir
+      setLoading(false); // Termina o loading em caso de erro na verificação
     }
   };
 
   // Função para lidar com a escolha de pagamento PIX
   const handlePagarComPix = () => {
-    setLoading(true); // Ativa o loading para o redirecionamento
+    setLoading(true); // Mantém (ou reativa) o loading para o redirecionamento
     console.log("Opção PIX selecionada. Redirecionando...");
     navegar(
       `/payment?date=${dataSelecionada}&hour=${horarioSelecionado}&service=${encodeURIComponent(
@@ -459,16 +458,24 @@ export default function PaginaAgendamento() {
             </div>
           </div>
 
+          {/* Botão Submit */}
           <button
             type="submit"
-            className={`w-full py-4 rounded-lg text-white text-lg font-bold transition-all ${
+            className={`w-full py-4 rounded-lg text-white text-lg font-bold transition-all flex justify-center items-center ${
               !formularioValido || loading
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-amber-500 hover:bg-amber-600"
             }`}
             disabled={!formularioValido || loading}
           >
-            {loading ? "Verificando..." : "Escolher Pagamento"}
+            {loading && !escolhendoPagamento ? ( // Mostrar texto específico durante a verificação final
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Confirmando horário...
+              </>
+            ) : (
+              "Escolher Pagamento"
+            )}
           </button>
         </form>
       ) : (
