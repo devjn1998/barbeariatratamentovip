@@ -36,7 +36,8 @@ export default function PaginaAgendamento() {
   const [servicoSelecionado, setServicoSelecionado] = useState("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingCheck, setLoadingCheck] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [horariosIndisponiveis, setHorariosIndisponiveis] = useState<string[]>(
     []
   );
@@ -53,7 +54,7 @@ export default function PaginaAgendamento() {
     }
 
     async function verificarHorariosOcupados(data: string) {
-      setLoading(true);
+      setLoadingCheck(true);
       try {
         console.log(`Buscando horários ocupados para ${data}...`);
         // FAZ APENAS UMA CHAMADA PARA A API
@@ -73,7 +74,7 @@ export default function PaginaAgendamento() {
         setHorariosIndisponiveis([]); // Limpa em caso de erro
         setHorariosDisponiveis(TODOS_HORARIOS); // Ou mostrar um estado de erro
       } finally {
-        setLoading(false);
+        setLoadingCheck(false);
       }
     }
 
@@ -93,7 +94,8 @@ export default function PaginaAgendamento() {
     telefone.trim() !== "" &&
     dataSelecionada &&
     horarioSelecionado &&
-    servicoSelecionado;
+    servicoSelecionado &&
+    !loadingCheck;
 
   // Função para formatar telefone
   const formatarTelefone = (valor: string) => {
@@ -216,7 +218,7 @@ export default function PaginaAgendamento() {
       return;
     }
 
-    setLoading(true); // <- Mostra "Verificando..."
+    setLoadingCheck(true);
 
     try {
       // Verificação final de disponibilidade ANTES de mostrar opções
@@ -246,7 +248,7 @@ export default function PaginaAgendamento() {
         };
         await atualizarHorarios();
         setHorarioSelecionado(""); // Limpa a seleção de horário inválida
-        setLoading(false); // Termina o loading aqui
+        setLoadingCheck(false);
         return; // Interrompe o fluxo
       }
 
@@ -255,33 +257,31 @@ export default function PaginaAgendamento() {
         "Horário confirmado como disponível, mostrando opções de pagamento."
       );
       setEscolhendoPagamento(true); // Mostra os botões PIX/Dinheiro
-      console.log("DEBUG: Estado escolhendoPagamento definido como true.");
-      setLoading(false);
+      setLoadingCheck(false);
     } catch (error: any) {
       console.error("Erro na verificação final de horário:", error);
       toast.error(
         error.response?.data?.message ||
           "Erro ao verificar disponibilidade. Tente novamente."
       );
-      setLoading(false); // Termina o loading em caso de erro na verificação
+      setLoadingCheck(false); // Termina o loading em caso de erro na verificação
     }
   };
 
   // Função para lidar com a escolha de pagamento PIX
   const handlePagarComPix = () => {
-    setLoading(true); // Mantém (ou reativa) o loading para o redirecionamento
+    setProcessingPayment(true);
     console.log("Opção PIX selecionada. Redirecionando...");
     navegar(
       `/payment?date=${dataSelecionada}&hour=${horarioSelecionado}&service=${encodeURIComponent(
         servicoSelecionado
       )}&name=${encodeURIComponent(nome)}&phone=${encodeURIComponent(telefone)}`
     );
-    // setLoading(false); // Não precisa desativar aqui, a página vai mudar
   };
 
   // Função para lidar com a escolha de pagamento presencial
   const handlePagarPresencialmente = async () => {
-    setLoading(true);
+    setProcessingPayment(true);
     console.log("Opção Pagar Presencialmente selecionada.");
 
     // Buscar o preço do serviço selecionado
@@ -292,7 +292,7 @@ export default function PaginaAgendamento() {
       toast.error(
         "Serviço selecionado não encontrado. Por favor, selecione novamente."
       );
-      setLoading(false);
+      setProcessingPayment(false);
       setEscolhendoPagamento(false);
       return;
     }
@@ -341,7 +341,7 @@ export default function PaginaAgendamento() {
       );
       setEscolhendoPagamento(false); // Voltar para o formulário se der erro
     } finally {
-      setLoading(false);
+      setProcessingPayment(false);
     }
   };
 
@@ -367,7 +367,7 @@ export default function PaginaAgendamento() {
                   className="w-full p-2 border rounded-lg"
                   placeholder="Digite seu nome completo"
                   required
-                  disabled={loading}
+                  disabled={loadingCheck}
                 />
               </div>
               <div>
@@ -382,7 +382,7 @@ export default function PaginaAgendamento() {
                   placeholder="(XX) XXXXX-XXXX"
                   required
                   maxLength={15}
-                  disabled={loading}
+                  disabled={loadingCheck}
                 />
               </div>
             </div>
@@ -407,12 +407,12 @@ export default function PaginaAgendamento() {
                   min={new Date().toISOString().split("T")[0]}
                   className="w-full p-2 border rounded-lg"
                   required
-                  disabled={loading}
+                  disabled={loadingCheck}
                 />
               </div>
 
               {dataSelecionada &&
-                loading &&
+                loadingCheck &&
                 horariosDisponiveis.length === 0 && (
                   <div className="flex justify-center items-center py-4 text-gray-600">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-500 mr-2"></div>
@@ -420,7 +420,7 @@ export default function PaginaAgendamento() {
                   </div>
                 )}
 
-              {dataSelecionada && !loading && (
+              {dataSelecionada && !loadingCheck && (
                 <div className="grid grid-cols-3 gap-3 mt-4">
                   {TODOS_HORARIOS.map((horario) => (
                     <button
@@ -439,7 +439,7 @@ export default function PaginaAgendamento() {
                       {horario}
                     </button>
                   ))}
-                  {horariosDisponiveis.length === 0 && !loading && (
+                  {horariosDisponiveis.length === 0 && !loadingCheck && (
                     <p className="col-span-3 text-center text-red-500 mt-2">
                       Nenhum horário disponível para esta data.
                     </p>
@@ -456,7 +456,7 @@ export default function PaginaAgendamento() {
                 <button
                   type="button"
                   key={servico.nome}
-                  disabled={loading}
+                  disabled={loadingCheck}
                   className={`w-full p-4 rounded-lg transition-all flex justify-between items-center text-left ${
                     servicoSelecionado === servico.nome
                       ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1"
@@ -476,13 +476,13 @@ export default function PaginaAgendamento() {
           <button
             type="submit"
             className={`w-full py-4 rounded-lg text-white text-lg font-bold transition-all flex justify-center items-center ${
-              !formularioValido || loading
+              !formularioValido || loadingCheck
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-amber-500 hover:bg-amber-600"
             }`}
-            disabled={!formularioValido || loading}
+            disabled={!formularioValido || loadingCheck}
           >
-            {loading && !escolhendoPagamento ? (
+            {loadingCheck ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                 Confirmando horário...
@@ -507,9 +507,9 @@ export default function PaginaAgendamento() {
             <button
               onClick={handlePagarComPix}
               className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 px-6 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center disabled:opacity-70"
-              disabled={loading}
+              disabled={processingPayment}
             >
-              {loading ? (
+              {processingPayment ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 <>
@@ -534,9 +534,9 @@ export default function PaginaAgendamento() {
             <button
               onClick={handlePagarPresencialmente}
               className="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-6 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center disabled:opacity-70"
-              disabled={loading}
+              disabled={processingPayment}
             >
-              {loading ? (
+              {processingPayment ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 <>
@@ -561,10 +561,10 @@ export default function PaginaAgendamento() {
             <button
               onClick={() => {
                 setEscolhendoPagamento(false);
-                setLoading(false);
+                setLoadingCheck(false);
               }}
               className="w-full text-gray-600 hover:text-black py-2 mt-4 disabled:opacity-50"
-              disabled={loading}
+              disabled={processingPayment}
             >
               Voltar e alterar dados
             </button>

@@ -47,6 +47,7 @@ export default function MercadoPagoBrick({
     qrCodeText: string;
     expiresAt: string;
   } | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   // Verificação periódica do status do pagamento
   useEffect(() => {
@@ -141,11 +142,58 @@ export default function MercadoPagoBrick({
     };
   }, [paymentId, onSuccess, dadosAgendamento]);
 
+  const checkBackendConnectivity = async (): Promise<boolean> => {
+    console.log(
+      "Verificando conectividade com o backend (Mercado Pago test endpoint)..."
+    );
+    try {
+      // GARANTIR que está chamando o endpoint GET /api/mercadopago/test
+      const response = await api.get("/api/mercadopago/test");
+      // Verificar se a resposta tem a estrutura esperada
+      if (response.data && response.data.success) {
+        console.log("Conectividade com backend OK.");
+        return true;
+      } else {
+        console.error(
+          "Resposta inesperada do backend para teste de conectividade:",
+          response.data
+        );
+        return false;
+      }
+    } catch (error: any) {
+      // Logar o erro detalhado que causa o SyntaxError
+      console.error(
+        "Erro na chamada de verificação de conectividade ao backend:",
+        error
+      );
+      if (error.response) {
+        console.error("Detalhes da resposta do erro:", error.response.data);
+        console.error("Status do erro:", error.response.status);
+      }
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    checkBackendConnectivity().then(setIsConnected);
+  }, []);
+
   const iniciarPagamentoPix = async () => {
     setLoading(true);
     setError(null);
 
     try {
+      console.log("Verificando conectividade antes de pagar...");
+      const connected = await checkBackendConnectivity();
+      setIsConnected(connected);
+      if (!connected) {
+        toast.error(
+          "Não foi possível conectar ao servidor de pagamento. Verifique sua conexão."
+        );
+        setLoading(false);
+        return;
+      }
+
       // Verificar conectividade primeiro
       console.log("Verificando conectividade com Mercado Pago...");
       const connectivity = await testMercadoPagoConnectivity();
