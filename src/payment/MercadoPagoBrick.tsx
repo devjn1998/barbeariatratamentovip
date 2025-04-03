@@ -4,15 +4,29 @@ import api from "../services/api";
 import {
   atualizarDadosAgendamentoPorPagamento,
   criarPagamentoPix,
-  testMercadoPagoConnectivity,
   verificarStatusPagamento,
 } from "../services/payment";
-import { AppointmentData } from "../types/payment";
+import { AppointmentData, NormalizedPayment } from "../types/payment";
 
 declare global {
   interface Window {
     MercadoPago: any;
   }
+}
+
+interface DadosAgendamentoProps {
+  data: string;
+  horario: string;
+  nome: string;
+  telefone: string;
+  servico: string;
+  email?: string;
+}
+
+interface QrCodeData {
+  qrCode: string;
+  qrCodeBase64: string;
+  expiresAt: string;
 }
 
 interface MercadoPagoBrickProps {
@@ -21,13 +35,7 @@ interface MercadoPagoBrickProps {
   onError?: (error: Error) => void;
   email?: string;
   description?: string;
-  dadosAgendamento?: {
-    data: string;
-    horario: string;
-    nome: string;
-    telefone: string;
-    servico: string;
-  };
+  dadosAgendamento: DadosAgendamentoProps;
 }
 
 export default function MercadoPagoBrick({
@@ -42,14 +50,10 @@ export default function MercadoPagoBrick({
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<{
-    qrCode: string;
-    qrCodeText: string;
-    expiresAt: string;
-  } | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<QrCodeData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const paymentStatusInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Verificação periódica do status do pagamento
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
@@ -65,7 +69,6 @@ export default function MercadoPagoBrick({
           console.log(`✅ Pagamento ${paymentId} aprovado!`);
           clearInterval(intervalId);
 
-          // Só atualizar os dados de agendamento se houver dados
           if (dadosAgendamento) {
             try {
               console.log(
@@ -73,7 +76,6 @@ export default function MercadoPagoBrick({
                 dadosAgendamento
               );
 
-              // Criar o agendamento utilizando a API
               const response = await api.post("/api/agendamentos", {
                 data: dadosAgendamento.data,
                 horario: dadosAgendamento.horario,
@@ -82,14 +84,13 @@ export default function MercadoPagoBrick({
                   nome: dadosAgendamento.nome,
                   telefone: dadosAgendamento.telefone,
                 },
-                pagamentoId: paymentId, // Vincular ao pagamento
-                status: "confirmado", // Já marcar como confirmado
-                preco: amount, // Adicionar o preço do serviço
+                pagamentoId: paymentId,
+                status: "confirmado",
+                preco: amount,
               });
 
               console.log("📋 Agendamento criado com sucesso:", response.data);
 
-              // Também atualizar o pagamento com os dados do agendamento
               const appointmentData: AppointmentData = {
                 date: dadosAgendamento.data,
                 time: dadosAgendamento.horario,
@@ -97,7 +98,7 @@ export default function MercadoPagoBrick({
                 clientPhone: dadosAgendamento.telefone,
                 service: dadosAgendamento.servico,
                 status: "confirmado",
-                price: amount, // Adicionar o preço do serviço
+                price: amount,
               };
 
               await atualizarDadosAgendamentoPorPagamento(
@@ -112,7 +113,6 @@ export default function MercadoPagoBrick({
               toast.error(
                 "Pagamento aprovado, mas houve um erro ao confirmar o agendamento."
               );
-              // Não impedir o fluxo de sucesso do pagamento
             }
           }
 
@@ -120,23 +120,19 @@ export default function MercadoPagoBrick({
           if (onSuccess) {
             setTimeout(() => {
               onSuccess(paymentId);
-            }, 1000); // Pequeno delay para garantir que as mensagens de toast sejam vistas
+            }, 1000);
           }
         }
       } catch (err) {
         console.error("Erro ao verificar status:", err);
-        // Não parar a verificação por erros isolados
       }
     }
 
     if (paymentId) {
-      // Verificar imediatamente
       checkPaymentStatus();
-      // E depois a cada 3 segundos
       intervalId = setInterval(checkPaymentStatus, 3000);
     }
 
-    // Limpar intervalo quando o componente for desmontado
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
@@ -144,31 +140,38 @@ export default function MercadoPagoBrick({
 
   const checkBackendConnectivity = async (): Promise<boolean> => {
     console.log(
-      "Verificando conectividade com o backend (Mercado Pago test endpoint)..."
+      "[Frontend Check] Verificando conectividade com o backend (via /api/mercadopago/test)"
     );
     try {
-      // GARANTIR que está chamando o endpoint GET /api/mercadopago/test
       const response = await api.get("/api/mercadopago/test");
-      // Verificar se a resposta tem a estrutura esperada
-      if (response.data && response.data.success) {
-        console.log("Conectividade com backend OK.");
+      if (response.status === 200 && response.data && response.data.success) {
+        console.log("[Frontend Check] Conectividade com backend OK.");
         return true;
       } else {
-        console.error(
-          "Resposta inesperada do backend para teste de conectividade:",
+        console.warn(
+          "[Frontend Check] Resposta inesperada do backend:",
           response.data
         );
-        return false;
+        throw new Error(`Resposta inesperada do servidor: ${response.status}`);
       }
     } catch (error: any) {
-      // Logar o erro detalhado que causa o SyntaxError
       console.error(
-        "Erro na chamada de verificação de conectividade ao backend:",
+        "[Frontend Check] Erro na verificação de conectividade:",
         error
       );
       if (error.response) {
-        console.error("Detalhes da resposta do erro:", error.response.data);
-        console.error("Status do erro:", error.response.status);
+        console.error(
+          "[Frontend Check] Detalhes da resposta do erro:",
+          error.response.data
+        );
+        console.error(
+          "[Frontend Check] Status do erro:",
+          error.response.status
+        );
+      } else {
+        console.error(
+          "[Frontend Check] Erro sem resposta do servidor (pode ser rede/CORS antes da resposta):"
+        );
       }
       return false;
     }
@@ -178,115 +181,73 @@ export default function MercadoPagoBrick({
     checkBackendConnectivity().then(setIsConnected);
   }, []);
 
-  const iniciarPagamentoPix = async () => {
+  const handlePaymentClick = async () => {
     setLoading(true);
     setError(null);
+    setQrCodeData(null);
 
+    console.log("Verificando conectividade antes de pagar...");
+    const connected = await checkBackendConnectivity();
+    setIsConnected(connected);
+    if (!connected) {
+      const errorMsg =
+        "Não foi possível conectar ao servidor de pagamento. Verifique sua conexão.";
+      toast.error(errorMsg);
+      setError(errorMsg);
+      if (onError) onError(new Error(errorMsg));
+      setLoading(false);
+      return;
+    }
+
+    console.log("Conectividade OK. Tentando criar pagamento PIX...");
     try {
-      console.log("Verificando conectividade antes de pagar...");
-      const connected = await checkBackendConnectivity();
-      setIsConnected(connected);
-      if (!connected) {
-        toast.error(
-          "Não foi possível conectar ao servidor de pagamento. Verifique sua conexão."
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Verificar conectividade primeiro
-      console.log("Verificando conectividade com Mercado Pago...");
-      const connectivity = await testMercadoPagoConnectivity();
-      console.log("Resultado da verificação de conectividade:", connectivity);
-
-      if (!connectivity) {
-        throw new Error(
-          "Não foi possível conectar ao Mercado Pago. Verifique sua conexão e tente novamente."
-        );
-      }
-
-      // Validar dados mínimos para o pagamento
-      if (!amount || amount <= 0) {
-        throw new Error(`Valor de pagamento inválido: ${amount}`);
-      }
-
-      // Converter para número explicitamente
-      const valorNumerico = Number(amount);
-      if (isNaN(valorNumerico)) {
-        throw new Error(`O valor não é um número válido: ${amount}`);
-      }
-
-      console.log(`Valor do pagamento (validado): ${valorNumerico}`);
-
-      // Preparar dados do pagamento no formato correto do Mercado Pago
-      const paymentData = {
-        transaction_amount: valorNumerico, // Campo principal esperado pelo Mercado Pago
-        amount: valorNumerico, // Manter para compatibilidade
-        payment_method_id: "pix",
-        description: description,
-        email: email,
-        payer: {
-          email: email,
-          first_name: dadosAgendamento?.nome?.split(" ")[0] || "Cliente",
-          last_name:
-            dadosAgendamento?.nome?.split(" ").slice(1).join(" ") || "",
-          identification: {
-            type: "CPF",
-            number: "11111111111",
-          },
-        },
-        // Dados adicionais para processamento no backend
-        nome: dadosAgendamento?.nome || "Cliente",
-        telefone: dadosAgendamento?.telefone || "Não informado",
-        data: dadosAgendamento?.data,
-        horario: dadosAgendamento?.horario || "A definir",
-        servico: dadosAgendamento?.servico,
-        // Identificador único para referência (exigido pelo Mercado Pago)
-        external_reference: `payment_${Date.now()}`,
+      const dadosParaCriar = {
+        amount: amount,
+        description: description || "Pagamento Agendamento",
+        email: dadosAgendamento?.email || "cliente@indefinido.com",
+        nome: dadosAgendamento?.nome || "",
+        telefone: dadosAgendamento?.telefone || "",
+        data: dadosAgendamento?.data || "",
+        horario: dadosAgendamento?.horario || "",
+        servico: dadosAgendamento?.servico || "",
       };
 
-      console.log("Dados para pagamento:", paymentData);
+      console.log("Enviando para criarPagamentoPix:", dadosParaCriar);
+      const paymentResponse: NormalizedPayment = await criarPagamentoPix(
+        dadosParaCriar
+      );
+      console.log("Resposta de criarPagamentoPix:", paymentResponse);
 
-      // Criar pagamento PIX
-      const resultado = await criarPagamentoPix(paymentData);
-      console.log("Pagamento PIX criado:", resultado);
+      const qrCode = paymentResponse?.qrCode || "";
+      const qrCodeBase64 = paymentResponse?.qrCodeBase64 || "";
+      const paymentIdReceived = paymentResponse?.id || null;
+      const expiresAt = paymentResponse?.expiresAt || "";
 
-      if (!resultado || !resultado.id) {
+      if (paymentIdReceived && qrCode && qrCodeBase64) {
+        setPaymentId(paymentIdReceived);
+        setQrCodeData({
+          qrCode: qrCode,
+          qrCodeBase64: qrCodeBase64,
+          expiresAt: expiresAt,
+        });
+        toast.success("QR Code PIX gerado com sucesso! Escaneie para pagar.");
+      } else {
+        console.error(
+          "Resposta do pagamento não contém dados do QR Code ou ID:",
+          paymentResponse
+        );
         throw new Error(
-          "Falha ao gerar o pagamento. Resposta inválida do servidor."
+          "Resposta inválida do Mercado Pago ao criar pagamento (sem QR Code ou ID)."
         );
       }
+    } catch (error: any) {
+      const errorMessage = String(
+        error?.message || "Erro desconhecido ao criar PIX"
+      );
+      console.error("[handlePaymentClick Catch]", errorMessage);
 
-      if (!resultado.qrCode) {
-        throw new Error("QR Code PIX não gerado. Tente novamente.");
-      }
-
-      // Guardar ID do pagamento e exibir QR Code
-      setPaymentId(resultado.id);
-
-      // Verificar e garantir que o QR Code seja uma string válida
-      const qrCodeValue = resultado.qrCode || "";
-      console.log("Dados do QR Code recebidos:", {
-        qrCode: qrCodeValue,
-        qrCodeText: resultado.qrCodeText || "",
-        tipo: typeof qrCodeValue,
-        tamanho: qrCodeValue.length,
-      });
-
-      setQrCodeData({
-        qrCode: qrCodeValue,
-        qrCodeText: resultado.qrCodeText || "",
-        expiresAt: resultado.expiresAt || "",
-      });
-
-      toast.success("QR Code PIX gerado com sucesso! Escaneie para pagar.");
-    } catch (err: any) {
-      console.error("Erro ao criar pagamento PIX:", err);
-
-      const errorMessage = getErrorMessage(err);
       toast.error(errorMessage);
       setError(errorMessage);
-
       if (onError) {
         onError(new Error(errorMessage));
       }
@@ -295,41 +256,14 @@ export default function MercadoPagoBrick({
     }
   };
 
-  // Função auxiliar para extrair mensagens de erro apropriadas
-  const getErrorMessage = (err: any): string => {
-    if (!err) return "Erro desconhecido";
-
-    // Verificar se há resposta da API
-    if (err.response?.data?.message) {
-      return err.response.data.message;
-    }
-
-    // Verificar mensagem genérica
-    if (err.message) {
-      if (err.message.includes("Network Error")) {
-        return "Falha na conexão com o servidor. Verifique sua internet.";
-      }
-
-      // Erros HTTP comuns
-      if (err.message.includes("400")) {
-        return "Dados de pagamento inválidos. Verifique as informações.";
-      }
-      if (err.message.includes("500")) {
-        return "Serviço de pagamento temporariamente indisponível.";
-      }
-
-      return err.message;
-    }
-
-    return "Erro ao gerar pagamento PIX. Tente novamente.";
-  };
-
   const copiarCodigoPix = () => {
-    if (qrCodeData) {
+    if (qrCodeData?.qrCode) {
       navigator.clipboard
-        .writeText(qrCodeData.qrCodeText)
-        .then(() => toast.success("Código PIX copiado!"))
-        .catch(() => toast.error("Erro ao copiar código"));
+        .writeText(qrCodeData.qrCode)
+        .then(() => toast.info("Código PIX copiado!"))
+        .catch(() => toast.error("Erro ao copiar código PIX"));
+    } else {
+      toast.warn("Não há código PIX para copiar.");
     }
   };
 
@@ -343,7 +277,7 @@ export default function MercadoPagoBrick({
             Valor: <strong>R$ {amount.toFixed(2)}</strong>
           </p>
           <button
-            onClick={iniciarPagamentoPix}
+            onClick={handlePaymentClick}
             className="bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors"
           >
             Gerar QR Code PIX
@@ -385,7 +319,7 @@ export default function MercadoPagoBrick({
                     : qrCodeData.qrCode.length > 100
                     ? `data:image/png;base64,${qrCodeData.qrCode}`
                     : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                        qrCodeData.qrCodeText
+                        qrCodeData.qrCode
                       )}`
                 }
                 alt="QR Code PIX"
@@ -393,7 +327,7 @@ export default function MercadoPagoBrick({
                 onError={(e) => {
                   console.error("Erro ao carregar QR Code:", e);
                   e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                    qrCodeData.qrCodeText
+                    qrCodeData.qrCode
                   )}`;
                 }}
               />
@@ -408,7 +342,7 @@ export default function MercadoPagoBrick({
 
           <div className="w-full">
             <div className="border border-gray-300 rounded-lg p-2 mb-2 bg-gray-50 break-all text-xs">
-              {qrCodeData.qrCodeText}
+              {qrCodeData.qrCode}
             </div>
             <button
               onClick={copiarCodigoPix}
