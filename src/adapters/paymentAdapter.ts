@@ -31,12 +31,28 @@ export function formatCurrency(value: number): string {
  * Formata a data para exibição (DD/MM/YYYY)
  */
 export function formatDate(dateString: string): string {
+  // Verificar se a string tem o formato YYYY-MM-DD
+  if (
+    typeof dateString === "string" &&
+    dateString.match(/^\d{4}-\d{2}-\d{2}$/)
+  ) {
+    try {
+      const [year, month, day] = dateString.split("-");
+      // Retornar no formato DD/MM/YYYY
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error("Erro ao formatar data manualmente:", dateString, error);
+      return dateString; // Retorna a string original em caso de erro
+    }
+  }
+  // Se não for o formato esperado ou não for string, tentar Intl (ou retornar original)
   try {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("pt-BR").format(date);
+    // Tentar formatar com Intl como fallback, mas CUIDADO com fuso horário
+    return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(date);
   } catch (error) {
-    console.error("Erro ao formatar data:", error);
-    return dateString;
+    console.error("Erro ao formatar data com Intl:", dateString, error);
+    return dateString; // Retorna a string original se tudo falhar
   }
 }
 
