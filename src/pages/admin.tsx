@@ -374,94 +374,105 @@ export default function PaginaAdmin() {
                       return a.horario.localeCompare(b.horario);
                     })
                     // Garantir chaves únicas adicionando um índice
-                    .map((agendamento, index) => (
-                      <tr key={`${agendamento.id}-${index}`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {agendamento.cliente.nome}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
-                            {agendamento.cliente.telefone}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
-                            {/* GARANTIR FORMATAÇÃO MANUAL AQUI */}
-                            {agendamento.data
-                              ? agendamento.data.split("-").reverse().join("/")
-                              : "Data inválida"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
-                            {agendamento.horario}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
-                            {agendamento.servico}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
-                            R${" "}
-                            {typeof agendamento.preco === "number"
-                              ? agendamento.preco.toFixed(2)
-                              : "0.00"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              agendamento.status === "agendado"
-                                ? "bg-green-100 text-green-800"
-                                : agendamento.status === "concluido"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {agendamento.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <button
-                            className="text-amber-600 hover:text-amber-900 mr-4"
-                            onClick={() => {
-                              const payment: NormalizedPayment = {
-                                id: agendamento.pagamentoId || agendamento.id,
-                                status: agendamento.status,
-                                dateCreated: agendamento.data,
-                                transactionAmount: agendamento.preco,
-                                description: agendamento.servico,
-                                paymentMethodId: "pix",
-                                appointmentDate: agendamento.data,
-                                appointmentTime: agendamento.horario,
-                                clientName: agendamento.cliente.nome,
-                                clientPhone: agendamento.cliente.telefone,
-                                service: agendamento.servico,
-                                clientEmail: "",
-                              };
-                              handleOpenEditModal(payment);
-                            }}
-                          >
-                            <i className="fas fa-edit"></i>
-                          </button>
-                          <button
-                            className="text-red-600 hover:text-red-900"
-                            onClick={() =>
-                              confirmarExclusao(
-                                agendamento.id,
-                                agendamento.cliente.nome
-                              )
-                            }
-                          >
-                            Excluir
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    .map((agendamento, index) => {
+                      // LOG PARA INSPECIONAR O DADO
+                      console.log(
+                        `Rendering row ${index}: ID=${agendamento.id}, Data=${
+                          agendamento.data
+                        }, Type=${typeof agendamento.data}`
+                      );
+                      return (
+                        <tr key={`${agendamento.id}-${index}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {agendamento.cliente.nome}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {agendamento.cliente.telefone}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {/* GARANTIR FORMATAÇÃO MANUAL AQUI */}
+                              {agendamento.data
+                                ? agendamento.data
+                                    .split("-")
+                                    .reverse()
+                                    .join("/")
+                                : "Data inválida"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {agendamento.horario}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {agendamento.servico}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              R${" "}
+                              {typeof agendamento.preco === "number"
+                                ? agendamento.preco.toFixed(2)
+                                : "0.00"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                agendamento.status === "agendado"
+                                  ? "bg-green-100 text-green-800"
+                                  : agendamento.status === "concluido"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {agendamento.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <button
+                              className="text-amber-600 hover:text-amber-900 mr-4"
+                              onClick={() => {
+                                const payment: NormalizedPayment = {
+                                  id: agendamento.pagamentoId || agendamento.id,
+                                  status: agendamento.status,
+                                  dateCreated: agendamento.data,
+                                  transactionAmount: agendamento.preco,
+                                  description: agendamento.servico,
+                                  paymentMethodId: "pix",
+                                  appointmentDate: agendamento.data,
+                                  appointmentTime: agendamento.horario,
+                                  clientName: agendamento.cliente.nome,
+                                  clientPhone: agendamento.cliente.telefone,
+                                  service: agendamento.servico,
+                                  clientEmail: "",
+                                };
+                                handleOpenEditModal(payment);
+                              }}
+                            >
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button
+                              className="text-red-600 hover:text-red-900"
+                              onClick={() =>
+                                confirmarExclusao(
+                                  agendamento.id,
+                                  agendamento.cliente.nome
+                                )
+                              }
+                            >
+                              Excluir
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
