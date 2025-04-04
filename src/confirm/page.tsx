@@ -73,7 +73,7 @@ export default function PaginaConfirmacao() {
         </div>
 
         <p className="text-xl text-gray-600">
-          Obrigado por escolher a Barbearia Andin.
+          Obrigado por escolher a Barbearia Tratamento Vip.
           <br />
           {isPending
             ? "Lembre-se de efetuar o pagamento no dia."

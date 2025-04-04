@@ -107,7 +107,9 @@ export default function PaymentPage() {
             </li>
             <li>
               <strong>Data:</strong>{" "}
-              {new Date(data).toLocaleDateString("pt-BR")}
+              {new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
+                timeZone: "UTC",
+              })}
             </li>
             <li>
               <strong>Horário:</strong> {horario}
