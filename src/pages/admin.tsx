@@ -238,6 +238,14 @@ export default function PaginaAdmin() {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      {/* LOG ANTES DE RENDERIZAR (corrigido) */}
+      {(() => {
+        console.log(
+          `[AdminPage Render] Loading: ${loading}, Agendamentos Count: ${agendamentos.length}`
+        );
+        return null;
+      })()}
+
       <h1 className="text-3xl font-bold mb-6">Painel Administrativo</h1>
 
       {/* Indicador de protocolo - para debugging */}
