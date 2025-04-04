@@ -388,7 +388,7 @@ export default function PaginaAdmin() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">
-                            {/* FORMATAR MANUALMENTE YYYY-MM-DD para DD/MM/YYYY */}
+                            {/* GARANTIR FORMATAÇÃO MANUAL AQUI */}
                             {agendamento.data
                               ? agendamento.data.split("-").reverse().join("/")
                               : "Data inválida"}
