@@ -411,35 +411,42 @@ export default function PaginaAgendamento() {
                 />
               </div>
 
-              {dataSelecionada &&
-                loadingCheck &&
-                horariosDisponiveis.length === 0 && (
-                  <div className="flex justify-center items-center py-4 text-gray-600">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-500 mr-2"></div>
-                    Carregando horários...
-                  </div>
-                )}
+              {/* Indicador de Loading para horários */}
+              {dataSelecionada && loadingCheck && (
+                <div className="flex justify-center items-center py-4 text-gray-600">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-500 mr-2"></div>
+                  Carregando horários...
+                </div>
+              )}
 
+              {/* Grid de Horários - Mostrar apenas se NÃO estiver carregando E tiver data selecionada */}
               {dataSelecionada && !loadingCheck && (
                 <div className="grid grid-cols-3 gap-3 mt-4">
-                  {TODOS_HORARIOS.map((horario) => (
-                    <button
-                      type="button"
-                      key={horario}
-                      disabled={horariosIndisponiveis.includes(horario)}
-                      className={`p-3 rounded-lg transition-all text-center ${
-                        horarioSelecionado === horario
-                          ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1"
-                          : horariosIndisponiveis.includes(horario)
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed line-through"
-                          : "bg-gray-100 hover:bg-gray-200 text-gray-800"
-                      }`}
-                      onClick={() => setHorarioSelecionado(horario)}
-                    >
-                      {horario}
-                    </button>
-                  ))}
-                  {horariosDisponiveis.length === 0 && !loadingCheck && (
+                  {/* Renderizar botões ou mensagem de nenhum horário */}
+                  {horariosDisponiveis.length === 0 &&
+                  horariosIndisponiveis.length === 0 ? (
+                    <p className="col-span-3 text-center text-gray-500 mt-2">
+                      Selecione uma data para ver os horários.
+                    </p>
+                  ) : horariosDisponiveis.length > 0 ? (
+                    TODOS_HORARIOS.map((horario) => (
+                      <button
+                        type="button"
+                        key={horario}
+                        disabled={horariosIndisponiveis.includes(horario)}
+                        className={`p-3 rounded-lg transition-all text-center ${
+                          horarioSelecionado === horario
+                            ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1"
+                            : horariosIndisponiveis.includes(horario)
+                            ? "bg-gray-300 text-gray-500 cursor-not-allowed line-through"
+                            : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                        }`}
+                        onClick={() => setHorarioSelecionado(horario)}
+                      >
+                        {horario}
+                      </button>
+                    ))
+                  ) : (
                     <p className="col-span-3 text-center text-red-500 mt-2">
                       Nenhum horário disponível para esta data.
                     </p>

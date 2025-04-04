@@ -388,9 +388,9 @@ export default function PaginaAdmin() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">
-                            {new Date(agendamento.data).toLocaleDateString(
-                              "pt-BR"
-                            )}
+                            {new Date(
+                              agendamento.data + "T00:00:00"
+                            ).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
