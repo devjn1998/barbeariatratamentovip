@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { getAllAppointments } from "../../services/appointments";
 import { NormalizedAppointment } from "../../types/appointment";
-import ControleExpediente from "../../components/admin/ControleExpediente";
 
 // Interface atualizada para as novas métricas
 interface DashboardStats {
@@ -140,9 +139,6 @@ export default function Dashboard() {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-6">Painel de Controle</h1>
-
-      {/* Adicione o componente de controle de expediente */}
-      <ControleExpediente />
 
       {/* Estatísticas e outros componentes existentes */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
