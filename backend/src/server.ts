@@ -1459,88 +1459,39 @@ app.get("/api/disponibilidade", async (req: Request, res: Response) => {
   try {
     const { data, horario } = req.query;
 
-    if (!data) {
-      return res.status(400).json({ error: "Data não fornecida" });
-    }
+    // Verificar se o expediente está aberto
+    const expedienteRef = doc(db, "configuracoes", "expediente");
+    const expedienteSnap = await getDoc(expedienteRef);
+    const expedienteAberto = expedienteSnap.exists()
+      ? expedienteSnap.data().aberto
+      : true;
 
-    console.log(`🔍 VERIFICANDO: ${data} às ${horario || "todos horários"}`);
-
-    // Buscar TODOS os agendamentos e filtrar manualmente
-    const agendamentosRef = collection(db, "agendamentos");
-    const querySnapshot = await getDocs(agendamentosRef);
-
-    console.log(`📊 Total de ${querySnapshot.size} agendamentos no banco`);
-
-    // Filtrar manualmente para garantir que diferentes formatos sejam considerados
-    const dataStr = String(data);
-    const horariosOcupados: string[] = [];
-
-    querySnapshot.forEach((doc: any) => {
-      const agendamento = doc.data();
-
-      // Verificar se as datas são equivalentes, independente de formato
-      let dataMatches = false;
-
-      // Verificação direta de strings
-      if (String(agendamento.data) === dataStr) {
-        dataMatches = true;
-      } else {
-        // Verificação com normalização de data
-        try {
-          const dataAgendamento = new Date(agendamento.data)
-            .toISOString()
-            .split("T")[0];
-          const dataRequisitada = new Date(dataStr).toISOString().split("T")[0];
-          dataMatches = dataAgendamento === dataRequisitada;
-        } catch (e) {
-          // Se falhar na conversão, usar a comparação de string original
-        }
-      }
-
-      // Se a data corresponder, adicionar o horário à lista de ocupados
-      if (dataMatches && agendamento.horario) {
-        console.log(
-          `✅ Encontrado agendamento: ${agendamento.data} às ${agendamento.horario}`
-        );
-        horariosOcupados.push(agendamento.horario);
-      }
-    });
-
-    console.log(
-      `⏰ Horários ocupados: ${horariosOcupados.join(", ") || "nenhum"}`
-    );
-
-    // Se um horário específico foi solicitado, verificar disponibilidade
-    if (horario) {
-      const horarioStr = String(horario);
-      const disponivel = !horariosOcupados.includes(horarioStr);
-
-      console.log(
-        `🔍 Horário ${horarioStr} está ${
-          disponivel ? "DISPONÍVEL" : "INDISPONÍVEL"
-        }`
-      );
-
-      return res.json({
-        disponivel,
-        data: dataStr,
-        horario: horarioStr,
-        message: disponivel ? "Horário disponível" : "Horário já ocupado",
+    if (!expedienteAberto) {
+      return res.status(200).json({
+        disponivel: false,
+        message: "Estabelecimento fechado no momento",
       });
     }
 
-    // Caso contrário, retornar todos os horários ocupados
-    return res.json({
-      data: dataStr,
-      horariosOcupados,
-      message: `${horariosOcupados.length} horários ocupados para ${dataStr}`,
-    });
+    // Verificar se o horário coincide com o horário de almoço
+    const almocoRef = doc(db, "configuracoes", "horario-almoco");
+    const almocoSnap = await getDoc(almocoRef);
+    const horarioAlmoco = almocoSnap.exists()
+      ? almocoSnap.data().horario
+      : null;
+
+    if (horarioAlmoco && horario === horarioAlmoco) {
+      return res.status(200).json({
+        disponivel: false,
+        message: "Horário reservado para almoço",
+      });
+    }
+
+    // Continuar com a verificação normal de disponibilidade
+    // ... existing code ...
   } catch (error) {
     console.error("❌ Erro ao verificar disponibilidade:", error);
-    return res.status(500).json({
-      error: "Erro ao verificar disponibilidade",
-      details: error instanceof Error ? error.message : String(error),
-    });
+    return res.status(500).json({ error: "Erro ao processar a solicitação" });
   }
 });
 
@@ -1951,3 +1902,109 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
+// Rota para obter status do expediente
+app.get(
+  "/api/configuracoes/expediente",
+  async (req: Request, res: Response) => {
+    try {
+      const configRef = doc(db, "configuracoes", "expediente");
+      const docSnap = await getDoc(configRef);
+
+      if (docSnap.exists()) {
+        return res.status(200).json(docSnap.data());
+      } else {
+        // Se não existir configuração, estabelecimento está aberto por padrão
+        await setDoc(configRef, { aberto: true });
+        return res.status(200).json({ aberto: true });
+      }
+    } catch (error) {
+      console.error("❌ Erro ao consultar status do expediente:", error);
+      return res.status(500).json({ error: "Erro ao processar a solicitação" });
+    }
+  }
+);
+
+// Rota para atualizar status do expediente
+app.post(
+  "/api/configuracoes/expediente",
+  async (req: Request, res: Response) => {
+    try {
+      const { aberto } = req.body;
+
+      if (typeof aberto !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "Status do expediente deve ser um booleano" });
+      }
+
+      const configRef = doc(db, "configuracoes", "expediente");
+      await setDoc(configRef, { aberto, atualizadoEm: serverTimestamp() });
+
+      return res
+        .status(200)
+        .json({
+          success: true,
+          message: `Expediente ${aberto ? "aberto" : "fechado"} com sucesso`,
+        });
+    } catch (error) {
+      console.error("❌ Erro ao atualizar status do expediente:", error);
+      return res.status(500).json({ error: "Erro ao processar a solicitação" });
+    }
+  }
+);
+
+// Rota para obter horário de almoço
+app.get(
+  "/api/configuracoes/horario-almoco",
+  async (req: Request, res: Response) => {
+    try {
+      const configRef = doc(db, "configuracoes", "horario-almoco");
+      const docSnap = await getDoc(configRef);
+
+      if (docSnap.exists()) {
+        return res.status(200).json(docSnap.data());
+      } else {
+        // Se não existir configuração, não há horário de almoço definido
+        await setDoc(configRef, { horario: null });
+        return res.status(200).json({ horario: null });
+      }
+    } catch (error) {
+      console.error("❌ Erro ao consultar horário de almoço:", error);
+      return res.status(500).json({ error: "Erro ao processar a solicitação" });
+    }
+  }
+);
+
+// Rota para atualizar horário de almoço
+app.post(
+  "/api/configuracoes/horario-almoco",
+  async (req: Request, res: Response) => {
+    try {
+      const { horario } = req.body;
+
+      // Verifica se o horário é nulo ou está no formato correto (HH:MM)
+      if (
+        horario !== null &&
+        !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(horario)
+      ) {
+        return res
+          .status(400)
+          .json({ error: "Formato de horário inválido. Use o formato HH:MM" });
+      }
+
+      const configRef = doc(db, "configuracoes", "horario-almoco");
+      await setDoc(configRef, { horario, atualizadoEm: serverTimestamp() });
+
+      return res.status(200).json({
+        success: true,
+        message: horario
+          ? `Horário de almoço definido como ${horario}`
+          : "Horário de almoço removido",
+      });
+    } catch (error) {
+      console.error("❌ Erro ao atualizar horário de almoço:", error);
+      return res.status(500).json({ error: "Erro ao processar a solicitação" });
+    }
+  }
+);
