@@ -96,67 +96,82 @@ export const testCollectionAccess = async (collectionName: string) => {
 
 export { app, db };
 
-console.log("🏁 Executando config/firebase.ts..."); // Log inicial
+console.log("🏁 Executando config/firebase.ts...");
 
 try {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  // LOG ADICIONADO: Verifica se a variável foi carregada
-  if (serviceAccountJson) {
-    // Loga apenas o início e fim para não expor a chave inteira nos logs
-    console.log(
-      "🔑 Variável FIREBASE_SERVICE_ACCOUNT_KEY encontrada. Início:",
-      serviceAccountJson.substring(0, 30) + "...",
-      "Fim:",
-      serviceAccountJson.substring(serviceAccountJson.length - 30)
-    );
-  } else {
+  if (!serviceAccountJson) {
     console.error(
       "❌ Variável FIREBASE_SERVICE_ACCOUNT_KEY NÃO encontrada no ambiente!"
     );
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is not set.");
   }
+  console.log(
+    "🔑 Variável FIREBASE_SERVICE_ACCOUNT_KEY encontrada. Tentando parse..."
+  );
 
-  if (!serviceAccountJson) {
-    console.error(
-      "❌ ERRO FATAL: Variável de ambiente FIREBASE_SERVICE_ACCOUNT_KEY não definida!"
-    );
-    console.warn(
-      "⚠️ Tentando inicialização padrão do Firebase Admin SDK (PROVAVELMENTE CAUSARÁ ERROS DE PERMISSÃO)."
-    );
-    admin.initializeApp(); // Isso provavelmente não funcionará corretamente sem credenciais
-  } else {
-    try {
-      const serviceAccount = JSON.parse(serviceAccountJson);
-      console.log(
-        "🔑 Inicializando Firebase Admin com chave da variável de ambiente. Project ID:",
-        serviceAccount.project_id
-      );
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-      console.log(
-        "✅ Firebase Admin SDK inicializado com sucesso via Service Account."
-      );
-    } catch (parseError) {
+  try {
+    // 1. Parse o JSON
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    console.log(`✅ JSON Parsed. Project ID: ${serviceAccount.project_id}`);
+
+    // 2. Verifique e corrija a chave privada
+    if (!serviceAccount.private_key) {
       console.error(
-        "❌ ERRO FATAL ao fazer parse do JSON da FIREBASE_SERVICE_ACCOUNT_KEY:",
-        parseError
+        "❌ Campo 'private_key' não encontrado no JSON da Service Account!"
       );
-      console.error(
-        "JSON recebido (início):",
-        serviceAccountJson.substring(0, 100)
-      );
-      throw parseError; // Re-lança o erro após logar
+      throw new Error("Missing 'private_key' in service account JSON.");
     }
+
+    console.log("🔧 Verificando e corrigindo newlines na private_key...");
+    // Log ANTES da correção
+    console.log(
+      "🔑 Private Key (antes da correção, início):",
+      serviceAccount.private_key.substring(0, 40)
+    );
+    // Substitui a sequência literal '\\n' pela quebra de linha real '\n'
+    const correctedPrivateKey = serviceAccount.private_key.replace(
+      /\\n/g,
+      "\n"
+    );
+    // Log DEPOIS da correção
+    console.log(
+      "🔑 Private Key (DEPOIS da correção, início):",
+      correctedPrivateKey.substring(0, 40)
+    );
+    console.log("✅ Correção de newlines aplicada (ou tentada).");
+
+    // Crie o objeto de credencial com a chave corrigida
+    const credential = admin.credential.cert({
+      projectId: serviceAccount.project_id,
+      clientEmail: serviceAccount.client_email,
+      privateKey: correctedPrivateKey, // <<< USA A CHAVE CORRIGIDA
+    });
+    console.log("🔑 Credencial criada. Tentando inicializar o App...");
+
+    // 3. Inicialize o Admin SDK com a credencial
+    admin.initializeApp({
+      credential, // Passa a credencial criada
+    });
+    console.log(
+      "✅ Firebase Admin SDK inicializado com sucesso via Service Account."
+    );
+  } catch (parseOrInitError) {
+    console.error(
+      "❌ ERRO FATAL no bloco try interno (parse/init):",
+      parseOrInitError
+    );
+    console.error(
+      "JSON recebido (início):",
+      serviceAccountJson.substring(0, 100)
+    );
+    throw parseOrInitError;
   }
 } catch (error) {
-  console.error(
-    "❌ ERRO FATAL durante inicialização do Firebase Admin SDK:",
-    error
-  );
+  console.error("❌ ERRO FATAL GERAL durante inicialização:", error);
+  process.exit(1);
 }
 
-// Exporta a instância do Firestore do Admin SDK
-// Garanta que esta é a instância usada nas rotas que precisam de permissão
 export const adminDb = admin.firestore();
 console.log("Firestore Admin Instance (adminDb) criada.");
 
