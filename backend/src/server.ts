@@ -15,7 +15,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { db } from "./config/firebase";
+import { adminDb, db } from "./config/firebase";
 import { mercadoPagoService } from "./services/mercadoPagoService";
 import { resetDatabaseCollections } from "./utils/databaseAdmin";
 import {
@@ -23,6 +23,8 @@ import {
   isValidTime,
   validarDadosAgendamento,
 } from "./utils/validators";
+import morgan from "morgan"; // Para logs HTTP
+import * as admin from "firebase-admin"; // Import necessário para FieldValue
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -54,6 +56,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use(morgan("dev")); // Logger de requisições HTTP
 
 // Configuração do Mercado Pago
 const client = new MercadoPagoConfig({

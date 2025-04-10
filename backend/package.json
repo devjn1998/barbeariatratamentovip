@@ -14,6 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/morgan": "^1.9.9",
     "axios": "^1.8.4",
     "backend": "file:",
     "cors": "^2.8.5",
@@ -22,6 +23,7 @@
     "firebase": "^11.6.0",
     "firebase-admin": "^13.1.0",
     "mercadopago": "^2.3.0",
+    "morgan": "^1.10.0",
     "stripe": "^17.6.0"
   },
   "devDependencies": {
