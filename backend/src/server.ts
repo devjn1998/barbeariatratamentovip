@@ -1939,24 +1939,35 @@ app.get(
             return res.status(200).json({ aberto: true });
           } catch (setError) {
             console.error("❌ Erro ao criar configuração padrão:", setError);
+            // CORREÇÃO: Verificar o tipo antes de acessar a mensagem
+            const errorMessage =
+              setError instanceof Error
+                ? setError.message
+                : "Erro desconhecido ao criar config padrão";
             return res.status(500).json({
               error: "Erro ao criar configuração padrão",
-              details: setError.message,
+              details: errorMessage, // Usar a variável corrigida
             });
           }
         }
       } catch (firestoreError) {
-        console.error("❌ Erro específico do Firestore:", firestoreError);
+        // Linha ~1952 (onde o erro acontece)
+        console.error("❌ Erro ao consultar expediente:", firestoreError);
+        // CORREÇÃO: Verificar o tipo antes de acessar a mensagem
+        const errorMessage =
+          firestoreError instanceof Error
+            ? firestoreError.message
+            : "Erro desconhecido no Firestore";
         return res.status(500).json({
           error: "Erro ao acessar banco de dados",
-          details: firestoreError.message,
-        });
+          details: errorMessage,
+        }); // Usar a variável corrigida
       }
     } catch (error) {
       console.error("❌ Erro ao consultar status do expediente:", error);
       return res.status(500).json({
         error: "Erro ao processar a solicitação",
-        details: error.message,
+        details: error instanceof Error ? error.message : "Erro desconhecido",
       });
     }
   }
@@ -2039,7 +2050,25 @@ app.post(
       });
     } catch (error) {
       console.error("❌ Erro ao atualizar horário de almoço:", error);
-      return res.status(500).json({ error: "Erro ao processar a solicitação" });
+
+      let errorMessage = "Erro desconhecido ao atualizar horário de almoço";
+      // Verifica se 'error' é um objeto e tem a propriedade 'message'
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as any).message === "string"
+      ) {
+        errorMessage = (error as any).message;
+      } else if (typeof error === "string") {
+        errorMessage = error; // Se o próprio erro for uma string
+      }
+
+      // Usa a variável 'errorMessage' na resposta
+      return res.status(500).json({
+        error: "Erro interno ao atualizar horário",
+        details: errorMessage,
+      });
     }
   }
 );
