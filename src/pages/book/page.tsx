@@ -3,26 +3,38 @@ import React, { useEffect, useState } from "react";
 const BookingPage = () => {
   const [expedienteAberto, setExpedienteAberto] = useState(true);
   const [horarioAlmoco, setHorarioAlmoco] = useState("");
-  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
+  const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
 
   useEffect(() => {
-    // Verificar status do expediente
+    // Verificações
     const statusExpediente = localStorage.getItem("expedienteAberto");
     setExpedienteAberto(statusExpediente !== "false");
 
-    // Verificar horário de almoço
     const almoco = localStorage.getItem("horarioAlmoco") || "";
     setHorarioAlmoco(almoco);
 
-    // Carregar horários e filtrar o horário de almoço
     carregarHorarios();
   }, []);
 
   const carregarHorarios = async () => {
-    // ... seu código para carregar horários
+    // Horários disponíveis - exemplo
+    const horariosPadroes: string[] = [
+      "09:00",
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00",
+      "18:00",
+    ];
 
-    // Filtrar o horário de almoço da lista de disponíveis
-    const horariosFiltrados = horarios.filter((h) => h !== horarioAlmoco);
+    // Filtrar o horário de almoço da lista
+    const horariosFiltrados = horariosPadroes.filter(
+      (h: string) => h !== horarioAlmoco
+    );
     setHorariosDisponiveis(horariosFiltrados);
   };
 

@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import api from "../../services/api";
-import { Button, Switch, TimePicker } from "antd";
-import { SaveOutlined } from "@ant-design/icons";
-import moment from "moment";
 
 export default function ControleExpediente() {
   const [estabelecimentoAberto, setEstabelecimentoAberto] = useState(
@@ -86,9 +83,9 @@ export default function ControleExpediente() {
     );
   };
 
-  const salvarHorarioAlmoco = (horario: string) => {
-    setHorarioAlmoco(horario);
-    toast.success(`Horário de almoço definido para ${horario}`);
+  const salvarHorarioAlmoco = (timeString: string) => {
+    setHorarioAlmoco(timeString);
+    toast.success(`Horário de almoço definido para ${timeString}`);
   };
 
   if (carregando) {
@@ -108,43 +105,43 @@ export default function ControleExpediente() {
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="font-medium mb-3">Status do Estabelecimento</h3>
           <div className="flex items-center mb-4">
-            <div
-              className={`h-4 w-4 rounded-full mr-2 ${
-                estabelecimentoAberto ? "bg-green-500" : "bg-red-500"
-              }`}
-            ></div>
+            <label className="switch mr-2">
+              <input
+                type="checkbox"
+                checked={estabelecimentoAberto}
+                onChange={toggleExpediente}
+              />
+              <span className="slider round"></span>
+            </label>
             <span>{estabelecimentoAberto ? "Aberto" : "Fechado"}</span>
           </div>
-          <Switch
-            checked={estabelecimentoAberto}
-            onChange={toggleExpediente}
-            checkedChildren="Aberto"
-            unCheckedChildren="Fechado"
-          />
         </div>
 
         {/* Controle de Horário de Almoço */}
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="font-medium mb-3">Horário de Almoço</h3>
-          <form onSubmit={definirHorarioAlmoco}>
-            <div className="flex flex-col space-y-2 mb-4">
-              <label className="text-sm text-gray-600">
-                Selecione o horário (deixe vazio para remover)
-              </label>
-              <TimePicker
-                format="HH:mm"
-                value={horarioAlmoco ? moment(horarioAlmoco, "HH:mm") : null}
-                onChange={(time, timeString) => salvarHorarioAlmoco(timeString)}
-              />
-            </div>
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={() => toast.success("Horário de almoço salvo!")}
-            >
-              Salvar
-            </Button>
-          </form>
+          <select
+            value={horarioAlmoco}
+            onChange={(e) => salvarHorarioAlmoco(e.target.value)}
+            className="border rounded-md p-2"
+          >
+            <option value="">Nenhum horário definido</option>
+            {[
+              "09:00",
+              "10:00",
+              "11:00",
+              "12:00",
+              "13:00",
+              "14:00",
+              "15:00",
+              "16:00",
+              "17:00",
+            ].map((hora) => (
+              <option key={hora} value={hora}>
+                {hora}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </div>
