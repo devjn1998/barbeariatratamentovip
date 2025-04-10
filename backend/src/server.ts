@@ -1908,19 +1908,56 @@ app.get(
   "/api/configuracoes/expediente",
   async (req: Request, res: Response) => {
     try {
-      const configRef = doc(db, "configuracoes", "expediente");
-      const docSnap = await getDoc(configRef);
+      console.log("🔍 Buscando configuração de expediente...");
 
-      if (docSnap.exists()) {
-        return res.status(200).json(docSnap.data());
-      } else {
-        // Se não existir configuração, estabelecimento está aberto por padrão
-        await setDoc(configRef, { aberto: true });
-        return res.status(200).json({ aberto: true });
+      // Verificar se o db está definido
+      if (!db) {
+        console.error("❌ Conexão com Firestore não inicializada");
+        return res.status(500).json({
+          error: "Erro interno do servidor",
+          details: "Conexão com banco de dados não inicializada",
+        });
+      }
+
+      try {
+        const configRef = doc(db, "configuracoes", "expediente");
+        const docSnap = await getDoc(configRef);
+
+        console.log("✅ Consulta ao Firestore realizada com sucesso");
+
+        if (docSnap.exists()) {
+          return res.status(200).json(docSnap.data());
+        } else {
+          // Se não existir configuração, estabelecimento está aberto por padrão
+          console.log("ℹ️ Documento não existe, criando configuração padrão");
+          try {
+            await setDoc(configRef, {
+              aberto: true,
+              atualizadoEm: serverTimestamp(),
+            });
+            console.log("✅ Configuração padrão criada com sucesso");
+            return res.status(200).json({ aberto: true });
+          } catch (setError) {
+            console.error("❌ Erro ao criar configuração padrão:", setError);
+            return res.status(500).json({
+              error: "Erro ao criar configuração padrão",
+              details: setError.message,
+            });
+          }
+        }
+      } catch (firestoreError) {
+        console.error("❌ Erro específico do Firestore:", firestoreError);
+        return res.status(500).json({
+          error: "Erro ao acessar banco de dados",
+          details: firestoreError.message,
+        });
       }
     } catch (error) {
       console.error("❌ Erro ao consultar status do expediente:", error);
-      return res.status(500).json({ error: "Erro ao processar a solicitação" });
+      return res.status(500).json({
+        error: "Erro ao processar a solicitação",
+        details: error.message,
+      });
     }
   }
 );
@@ -1941,12 +1978,10 @@ app.post(
       const configRef = doc(db, "configuracoes", "expediente");
       await setDoc(configRef, { aberto, atualizadoEm: serverTimestamp() });
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          message: `Expediente ${aberto ? "aberto" : "fechado"} com sucesso`,
-        });
+      return res.status(200).json({
+        success: true,
+        message: `Expediente ${aberto ? "aberto" : "fechado"} com sucesso`,
+      });
     } catch (error) {
       console.error("❌ Erro ao atualizar status do expediente:", error);
       return res.status(500).json({ error: "Erro ao processar a solicitação" });
