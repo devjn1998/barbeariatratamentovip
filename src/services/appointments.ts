@@ -5,6 +5,7 @@ import {
 import { NormalizedAppointment } from "../types/appointment";
 import { NormalizedPayment } from "../types/payment";
 import api from "./api";
+import { toast } from "react-toastify";
 
 /**
  * Carrega todos os agendamentos
@@ -134,17 +135,26 @@ export async function createAppointmentFromPaymentData(
 /**
  * Verifica se um horário está disponível
  */
-export async function checkAppointmentAvailability(
-  date: string,
-  time: string
+export async function verificarHorarioDisponivel(
+  data: string,
+  horario: string
 ): Promise<boolean> {
   try {
-    const { data } = await api.get(
-      `/api/disponibilidade?data=${date}&horario=${time}`
+    const { data: response } = await api.get(
+      `/api/disponibilidade?data=${data}&horario=${horario}`
     );
-    return data.disponivel;
+
+    if (!response.disponivel) {
+      if (response.message) {
+        toast.info(response.message);
+      }
+      return false;
+    }
+
+    return true;
   } catch (error) {
     console.error("Erro ao verificar disponibilidade:", error);
+    toast.error("Erro ao verificar disponibilidade do horário");
     return false; // Por segurança, considerar indisponível em caso de erro
   }
 }

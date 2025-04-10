@@ -43,6 +43,9 @@ export default function PaginaAgendamento() {
   );
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
   const [escolhendoPagamento, setEscolhendoPagamento] = useState(false);
+  const [expedienteAberto, setExpedienteAberto] = useState<boolean>(true);
+  const [horarioAlmoco, setHorarioAlmoco] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState<boolean>(true);
   const navegar = useNavigate();
 
   // Verificar disponibilidade de horários quando a data é alterada
@@ -87,6 +90,38 @@ export default function PaginaAgendamento() {
     // }, 30000);
     // return () => clearInterval(intervalo);
   }, [dataSelecionada]); // A dependência agora é só dataSelecionada
+
+  useEffect(() => {
+    const verificarConfiguracoes = async () => {
+      try {
+        // Verificar status do expediente
+        const resExpediente = await api.get("/api/configuracoes/expediente");
+        setExpedienteAberto(resExpediente.data.aberto);
+
+        // Verificar horário de almoço
+        const resAlmoco = await api.get("/api/configuracoes/horario-almoco");
+        setHorarioAlmoco(resAlmoco.data.horario);
+      } catch (error) {
+        console.error("Erro ao verificar configurações:", error);
+        toast.error("Não foi possível verificar o status do estabelecimento");
+      } finally {
+        setCarregando(false);
+      }
+    };
+
+    verificarConfiguracoes();
+  }, []);
+
+  useEffect(() => {
+    // Filtrar horários disponíveis excluindo o horário de almoço
+    if (horarioAlmoco && TODOS_HORARIOS.includes(horarioAlmoco)) {
+      setHorariosDisponiveis(
+        TODOS_HORARIOS.filter((horario) => horario !== horarioAlmoco)
+      );
+    } else {
+      setHorariosDisponiveis([...TODOS_HORARIOS]);
+    }
+  }, [horarioAlmoco]);
 
   // Validar formulário
   const formularioValido =
@@ -344,6 +379,62 @@ export default function PaginaAgendamento() {
       setProcessingPayment(false);
     }
   };
+
+  if (carregando) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+      </div>
+    );
+  }
+
+  if (!expedienteAberto) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-2 bg-red-100 rounded-full">
+              <svg
+                className="h-6 w-6 text-red-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-lg font-medium text-red-800">
+                Estabelecimento Fechado
+              </h3>
+              <div className="mt-2 text-red-700">
+                <p>
+                  Lamentamos, mas o estabelecimento está fechado no momento.
+                </p>
+                <p className="mt-2">
+                  Por favor, tente novamente mais tarde ou entre em contato
+                  conosco para mais informações.
+                </p>
+              </div>
+              <div className="mt-4">
+                <a
+                  href="/"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-red-600 hover:bg-red-500 focus:outline-none focus:border-red-700 focus:shadow-outline-red active:bg-red-700 transition ease-in-out duration-150"
+                >
+                  Voltar para a página inicial
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
