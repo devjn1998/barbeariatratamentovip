@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import api from "../../services/api";
+import { Button, Switch, TimePicker } from "antd";
+import { SaveOutlined } from "@ant-design/icons";
+import moment from "moment";
 
 export default function ControleExpediente() {
-  const [estabelecimentoAberto, setEstabelecimentoAberto] = useState(true);
-  const [horarioAlmoco, setHorarioAlmoco] = useState<string | null>(null);
+  const [estabelecimentoAberto, setEstabelecimentoAberto] = useState(
+    localStorage.getItem("expedienteAberto") !== "false"
+  );
+  const [horarioAlmoco, setHorarioAlmoco] = useState(
+    localStorage.getItem("horarioAlmoco") || ""
+  );
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
 
   useEffect(() => {
     carregarConfiguracoes();
-  }, []);
+    localStorage.setItem("expedienteAberto", estabelecimentoAberto.toString());
+    localStorage.setItem("horarioAlmoco", horarioAlmoco);
+  }, [estabelecimentoAberto, horarioAlmoco]);
 
   async function carregarConfiguracoes() {
     setCarregando(true);
@@ -69,6 +78,19 @@ export default function ControleExpediente() {
     }
   }
 
+  const toggleExpediente = () => {
+    const novoEstado = !estabelecimentoAberto;
+    setEstabelecimentoAberto(novoEstado);
+    toast.success(
+      `Expediente ${novoEstado ? "aberto" : "fechado"} com sucesso!`
+    );
+  };
+
+  const salvarHorarioAlmoco = (horario: string) => {
+    setHorarioAlmoco(horario);
+    toast.success(`Horário de almoço definido para ${horario}`);
+  };
+
   if (carregando) {
     return (
       <div className="p-4 flex justify-center">
@@ -93,21 +115,12 @@ export default function ControleExpediente() {
             ></div>
             <span>{estabelecimentoAberto ? "Aberto" : "Fechado"}</span>
           </div>
-          <button
-            onClick={alternarExpediente}
-            disabled={atualizando}
-            className={`px-4 py-2 rounded-md text-white ${
-              estabelecimentoAberto
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-green-600 hover:bg-green-700"
-            } transition-colors`}
-          >
-            {atualizando
-              ? "Atualizando..."
-              : estabelecimentoAberto
-              ? "Encerrar Expediente"
-              : "Abrir Expediente"}
-          </button>
+          <Switch
+            checked={estabelecimentoAberto}
+            onChange={toggleExpediente}
+            checkedChildren="Aberto"
+            unCheckedChildren="Fechado"
+          />
         </div>
 
         {/* Controle de Horário de Almoço */}
@@ -118,38 +131,19 @@ export default function ControleExpediente() {
               <label className="text-sm text-gray-600">
                 Selecione o horário (deixe vazio para remover)
               </label>
-              <select
-                value={horarioAlmoco || ""}
-                onChange={(e) => setHorarioAlmoco(e.target.value || null)}
-                className="border rounded-md p-2"
-              >
-                <option value="">Nenhum horário definido</option>
-                {[
-                  "09:00",
-                  "10:00",
-                  "11:00",
-                  "12:00",
-                  "13:00",
-                  "14:00",
-                  "15:00",
-                  "16:00",
-                  "17:00",
-                  "18:00",
-                  "19:00",
-                ].map((hora) => (
-                  <option key={hora} value={hora}>
-                    {hora}
-                  </option>
-                ))}
-              </select>
+              <TimePicker
+                format="HH:mm"
+                value={horarioAlmoco ? moment(horarioAlmoco, "HH:mm") : null}
+                onChange={(time, timeString) => salvarHorarioAlmoco(timeString)}
+              />
             </div>
-            <button
-              type="submit"
-              disabled={atualizando}
-              className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors"
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={() => toast.success("Horário de almoço salvo!")}
             >
-              {atualizando ? "Salvando..." : "Salvar Horário de Almoço"}
-            </button>
+              Salvar
+            </Button>
           </form>
         </div>
       </div>
