@@ -7,6 +7,7 @@ import {
   getFirestore,
   setDoc,
 } from "firebase/firestore";
+import * as admin from "firebase-admin";
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -94,3 +95,75 @@ export const testCollectionAccess = async (collectionName: string) => {
 };
 
 export { app, db };
+
+console.log("🏁 Executando config/firebase.ts..."); // Log inicial
+
+try {
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  // LOG ADICIONADO: Verifica se a variável foi carregada
+  if (serviceAccountJson) {
+    // Loga apenas o início e fim para não expor a chave inteira nos logs
+    console.log(
+      "🔑 Variável FIREBASE_SERVICE_ACCOUNT_KEY encontrada. Início:",
+      serviceAccountJson.substring(0, 30) + "...",
+      "Fim:",
+      serviceAccountJson.substring(serviceAccountJson.length - 30)
+    );
+  } else {
+    console.error(
+      "❌ Variável FIREBASE_SERVICE_ACCOUNT_KEY NÃO encontrada no ambiente!"
+    );
+  }
+
+  if (!serviceAccountJson) {
+    console.error(
+      "❌ ERRO FATAL: Variável de ambiente FIREBASE_SERVICE_ACCOUNT_KEY não definida!"
+    );
+    console.warn(
+      "⚠️ Tentando inicialização padrão do Firebase Admin SDK (PROVAVELMENTE CAUSARÁ ERROS DE PERMISSÃO)."
+    );
+    admin.initializeApp(); // Isso provavelmente não funcionará corretamente sem credenciais
+  } else {
+    try {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      console.log(
+        "🔑 Inicializando Firebase Admin com chave da variável de ambiente. Project ID:",
+        serviceAccount.project_id
+      );
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log(
+        "✅ Firebase Admin SDK inicializado com sucesso via Service Account."
+      );
+    } catch (parseError) {
+      console.error(
+        "❌ ERRO FATAL ao fazer parse do JSON da FIREBASE_SERVICE_ACCOUNT_KEY:",
+        parseError
+      );
+      console.error(
+        "JSON recebido (início):",
+        serviceAccountJson.substring(0, 100)
+      );
+      throw parseError; // Re-lança o erro após logar
+    }
+  }
+} catch (error) {
+  console.error(
+    "❌ ERRO FATAL durante inicialização do Firebase Admin SDK:",
+    error
+  );
+}
+
+// Exporta a instância do Firestore do Admin SDK
+// Garanta que esta é a instância usada nas rotas que precisam de permissão
+export const adminDb = admin.firestore();
+console.log("Firestore Admin Instance (adminDb) criada.");
+
+// Mantenha a inicialização do cliente se você também a usa no backend
+// import { initializeApp } from 'firebase/app';
+// import { getFirestore } from 'firebase/firestore';
+// const firebaseConfig = { apiKey: process.env.FIREBASE_API_KEY, ... }; // Suas configs de cliente
+// const app = initializeApp(firebaseConfig);
+// export const db = getFirestore(app); // Instância do cliente
+// console.log("Firestore Client Instance (db) criada.");
