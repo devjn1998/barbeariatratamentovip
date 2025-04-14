@@ -169,7 +169,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </h3>
               <div className="space-y-1 sm:space-y-2 text-sm sm:text-base">
                 <p className="flex justify-between">
-                  <span>Segunda - Sexta</span>
+                  <span>Terça - Sábado</span>
                   <span>9h às 20h</span>
                 </p>
                 <p className="flex justify-between">
