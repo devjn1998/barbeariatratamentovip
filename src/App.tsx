@@ -1,7 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import BookingPage from "./book/page";
+import BookingPage from "./pages/book/page";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ConfirmationPage from "./confirm/page";
 import { AuthProvider } from "./contexts/AuthContext";
