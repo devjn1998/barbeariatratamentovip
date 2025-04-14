@@ -14,6 +14,13 @@ export const servicos: Service[] = [
     duracao: "30 min",
   },
   {
+    nome: "Corte Maquina e Tesoura",
+    preco: 35,
+    descricao:
+      "Corte versátil que combina a precisão da máquina nas laterais e nuca com o trabalho detalhado da tesoura na parte superior. Ideal para quem busca um visual equilibrado entre o clássico e o moderno. Inclui lavagem e finalização com produtos profissionais.",
+    duracao: "30 min",
+  },
+  {
     nome: "Corte pente único",
     preco: 25,
     descricao:
@@ -22,13 +29,13 @@ export const servicos: Service[] = [
   },
   {
     nome: "Corte Tesoura",
-    preco: 20,
+    preco: 35,
     descricao:
       "Técnica precisa de corte com tesoura profissional, ideal para estilos mais elaborados e texturas específicas.",
     duracao: "30 min",
   },
   {
-    nome: "Corte Pé",
+    nome: "Acabamento ( Pezinho )",
     preco: 10,
     descricao:
       "Cuidado especializado para os pés, garantindo higiene e aparência impecável com produtos específicos.",
@@ -42,8 +49,15 @@ export const servicos: Service[] = [
     duracao: "25 min",
   },
   {
+    nome: "Pigmentação",
+    preco: 10,
+    descricao:
+      "Modelagem completa da barba com acabamento em navalha e hidratação especial para a pele.",
+    duracao: "25 min",
+  },
+  {
     nome: "Sobrancelha",
-    preco: 25,
+    preco: 10,
     descricao:
       "Design e modelagem profissional das sobrancelhas, incluindo limpeza da área, depilação com pinça e acabamento perfeito para realçar o olhar.",
     duracao: "10 min",
@@ -56,10 +70,17 @@ export const servicos: Service[] = [
     duracao: "30 min",
   },
   {
-    nome: "Combo Cabelo+Pintura+Sobrancelha",
-    preco: 50,
+    nome: "Combo Cabelo+Barba+Pintura+Sobrancelha",
+    preco: 65,
     descricao:
-      "Corte, pintura e sobrancelha com produtos de alta qualidade para garantir um visual duradouro e elegante.",
+      "Corte, barba, pintura e sobrancelha com produtos de alta qualidade para garantir um visual duradouro e elegante.",
+    duracao: "30 min",
+  },
+  {
+    nome: "Combo Cabelo+Sobrancelha",
+    preco: 40,
+    descricao:
+      "Corte, barba, pintura e sobrancelha com produtos de alta qualidade para garantir um visual duradouro e elegante.",
     duracao: "30 min",
   },
 ];
