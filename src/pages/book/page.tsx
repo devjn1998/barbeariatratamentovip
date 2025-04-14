@@ -16,6 +16,8 @@ const TODOS_HORARIOS = [
   "17:00",
   "18:00",
   "19:00",
+  "20:00",
+  "21:00",
 ];
 
 // Interface para os dados de agendamento (ajustada)
@@ -337,45 +339,51 @@ export default function PaginaAgendamento() {
                 </div>
               )}
 
-              {/* Grid de Horários */}
+              {/* Grid de Horários - MODIFICADO */}
               {dataSelecionada && !loadingHorarios && (
                 <div className="grid grid-cols-3 gap-3 mt-4">
-                  {horariosDisponiveis.length > 0 ? (
-                    horariosDisponiveis.map(
-                      (
-                        horario // Mapeia apenas os disponíveis
-                      ) => (
-                        <button
-                          type="button"
-                          key={horario}
-                          className={`p-3 rounded-lg transition-all text-center ${
-                            horarioSelecionado === horario
-                              ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1"
-                              : "bg-gray-100 hover:bg-gray-200 text-gray-800" // Estilo padrão para disponível
-                          }`}
-                          onClick={() => setHorarioSelecionado(horario)}
-                          disabled={processingPayment} // Desabilita se estiver processando pagamento
-                        >
-                          {horario}
-                        </button>
-                      )
-                    )
-                  ) : (
-                    <p className="col-span-3 text-center text-red-500 mt-2">
-                      Nenhum horário disponível para esta data.
-                    </p>
-                  )}
+                  {/* Mapeia TODOS os horários padrão */}
+                  {TODOS_HORARIOS.map((horario) => {
+                    // Verifica se o horário está na lista de indisponíveis
+                    const isUnavailable =
+                      horariosIndisponiveis.includes(horario);
+                    // Verifica se é o horário selecionado atualmente
+                    const isSelected = horarioSelecionado === horario;
+
+                    return (
+                      <button
+                        type="button"
+                        key={horario}
+                        className={`
+                          p-3 rounded-lg transition-all text-center border
+                          ${
+                            isUnavailable
+                              ? "line-through text-gray-400 bg-gray-100 border-gray-200 cursor-not-allowed" // Estilo para indisponível
+                              : isSelected
+                              ? "bg-amber-500 text-white font-semibold ring-2 ring-amber-600 ring-offset-1 border-amber-500" // Estilo para selecionado
+                              : "bg-white hover:bg-gray-100 text-gray-800 border-gray-300" // Estilo padrão para disponível
+                          }
+                        `}
+                        // Desabilita se estiver indisponível OU se um pagamento estiver em processamento
+                        disabled={isUnavailable || processingPayment}
+                        // Só atualiza o estado se o horário não estiver indisponível
+                        onClick={() =>
+                          !isUnavailable && setHorarioSelecionado(horario)
+                        }
+                      >
+                        {horario}
+                      </button>
+                    );
+                  })}
+                  {/* Mensagem se TODOS os horários estiverem ocupados */}
+                  {horariosDisponiveis.length === 0 &&
+                    horariosIndisponiveis.length > 0 && (
+                      <p className="col-span-3 text-center text-red-500 mt-2">
+                        Todos os horários para esta data estão ocupados.
+                      </p>
+                    )}
                 </div>
               )}
-              {/* Mensagem se nenhum horário estiver disponível mesmo sem filtro */}
-              {dataSelecionada &&
-                !loadingHorarios &&
-                horariosDisponiveis.length === 0 &&
-                horariosIndisponiveis.length > 0 && (
-                  <p className="col-span-3 text-center text-red-500 mt-2">
-                    Todos os horários para esta data estão ocupados.
-                  </p>
-                )}
             </div>
           </div>
 
