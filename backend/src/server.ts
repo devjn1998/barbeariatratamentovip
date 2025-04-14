@@ -1460,13 +1460,56 @@ app.delete("/api/agendamentos/:id", async (req: Request, res: Response) => {
 // Modificar a rota de verificação de disponibilidade atual
 app.get("/api/disponibilidade", async (req: Request, res: Response) => {
   try {
-    const { data, horario } = req.query;
+    // MUDANÇA: Espera apenas 'data'
+    const { data } = req.query;
 
-    // Continuar com a verificação normal de disponibilidade
-    // ... existing code ...
-  } catch (error) {
-    console.error("❌ Erro ao verificar disponibilidade:", error);
-    return res.status(500).json({ error: "Erro ao processar a solicitação" });
+    if (!data || typeof data !== "string") {
+      // Adicionar validação básica
+      return res.status(400).json({
+        error: "Parâmetro 'data' é obrigatório e deve ser uma string.",
+      });
+    }
+    // Idealmente, adicione validação de formato YYYY-MM-DD aqui também
+
+    console.log(`[Disponibilidade] Verificando horários para data: ${data}`);
+
+    const agendamentosRef = collection(db, "agendamentos");
+    // MUDANÇA: Consulta apenas por 'data'
+    const q = query(
+      agendamentosRef,
+      where("data", "==", data)
+      // Opcional: Filtrar por status se necessário
+      // where("status", "in", ["agendado", "confirmado", "aguardando pagamento"])
+    );
+
+    console.time(`[Disponibilidade] Consulta Firestore para ${data}`);
+    const querySnapshot = await getDocs(q);
+    console.timeEnd(`[Disponibilidade] Consulta Firestore para ${data}`);
+
+    const horariosOcupados = querySnapshot.docs.map(
+      (doc) => doc.data().horario
+    );
+    console.log(
+      `[Disponibilidade] Horários ocupados encontrados para ${data}: ${horariosOcupados.join(
+        ", "
+      )}`
+    );
+
+    // Log antes de enviar a resposta
+    console.log(`[Disponibilidade] Enviando resposta para ${data}:`, {
+      horariosOcupados,
+    });
+    // MUDANÇA: Retorna o objeto { horariosOcupados: [...] }
+    return res.json({ horariosOcupados });
+  } catch (error: any) {
+    console.error(
+      `[Disponibilidade] Erro ao verificar disponibilidade para data ${req.query.data}:`,
+      error
+    );
+    return res.status(500).json({
+      error: "Erro ao verificar disponibilidade",
+      details: error.message || "Erro interno do servidor",
+    });
   }
 });
 
