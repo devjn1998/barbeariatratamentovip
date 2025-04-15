@@ -1460,46 +1460,52 @@ app.delete("/api/agendamentos/:id", async (req: Request, res: Response) => {
 // Modificar a rota de verificação de disponibilidade atual
 app.get("/api/disponibilidade", async (req: Request, res: Response) => {
   try {
-    // MUDANÇA: Espera apenas 'data'
     const { data } = req.query;
 
     if (!data || typeof data !== "string") {
-      // Adicionar validação básica
-      return res.status(400).json({
-        error: "Parâmetro 'data' é obrigatório e deve ser uma string.",
-      });
+      return res
+        .status(400)
+        .json({
+          error: "Parâmetro 'data' é obrigatório e deve ser uma string.",
+        });
     }
-    // Idealmente, adicione validação de formato YYYY-MM-DD aqui também
+    // Adicionar validação de formato YYYY-MM-DD seria ideal aqui
 
     console.log(`[Disponibilidade] Verificando horários para data: ${data}`);
 
     const agendamentosRef = collection(db, "agendamentos");
-    // MUDANÇA: Consulta apenas por 'data'
+
+    // --- MUDANÇA AQUI: Adicionar filtro de status ---
+    // Considera ocupado apenas se o status for 'agendado' (pago online)
+    // ou 'confirmado' (pagamento presencial confirmado pelo admin).
+    // Ignora 'aguardando pagamento'.
     const q = query(
       agendamentosRef,
-      where("data", "==", data)
-      // Opcional: Filtrar por status se necessário
-      // where("status", "in", ["agendado", "confirmado", "aguardando pagamento"])
+      where("data", "==", data),
+      where("status", "in", ["agendado", "confirmado"]) // <--- Filtro adicionado
     );
+    // --- FIM DA MUDANÇA ---
 
-    console.time(`[Disponibilidade] Consulta Firestore para ${data}`);
+    console.time(
+      `[Disponibilidade] Consulta Firestore para ${data} com filtro de status`
+    );
     const querySnapshot = await getDocs(q);
-    console.timeEnd(`[Disponibilidade] Consulta Firestore para ${data}`);
+    console.timeEnd(
+      `[Disponibilidade] Consulta Firestore para ${data} com filtro de status`
+    );
 
     const horariosOcupados = querySnapshot.docs.map(
       (doc) => doc.data().horario
     );
     console.log(
-      `[Disponibilidade] Horários ocupados encontrados para ${data}: ${horariosOcupados.join(
+      `[Disponibilidade] Horários ocupados (status agendado/confirmado) para ${data}: ${horariosOcupados.join(
         ", "
       )}`
     );
 
-    // Log antes de enviar a resposta
     console.log(`[Disponibilidade] Enviando resposta para ${data}:`, {
       horariosOcupados,
     });
-    // MUDANÇA: Retorna o objeto { horariosOcupados: [...] }
     return res.json({ horariosOcupados });
   } catch (error: any) {
     console.error(
