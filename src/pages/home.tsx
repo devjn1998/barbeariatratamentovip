@@ -49,12 +49,12 @@ export default function HomePage() {
 
   const services = [
     {
-      name: "Corte Disfarçado",
-      price: "R$ 35.00",
+      name: "Corte Disfarçado com máquina",
+      price: "R$ 30.00",
       image:
         "https://images.unsplash.com/photo-1621605815971-fbc98d665033?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80",
       description:
-        "Corte moderno com degradê suave nas laterais e nuca, realizado com máquina e tesoura, finalizado com navalha para um acabamento perfeito. Inclui lavagem e produtos especiais.",
+        "Corte moderno com degradê suave nas laterais e nuca, realizado com máquina de precisão para criar transições perfeitas. Técnica que proporciona visual limpo e contemporâneo, com acabamento refinado nas bordas e contornos. Inclui lavagem e finalização com produtos profissionais para um resultado impecável.",
     },
     {
       name: "Corte pente único",
