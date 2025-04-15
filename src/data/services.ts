@@ -7,14 +7,14 @@ export interface Service {
 
 export const servicos: Service[] = [
   {
-    nome: "Corte Disfarçado",
-    preco: 35,
+    nome: "Corte Disfarçado com Máquina",
+    preco: 30,
     descricao:
-      "Corte moderno com degradê suave nas laterais e nuca, realizado com máquina e tesoura, finalizado com navalha para um acabamento perfeito. Inclui lavagem e produtos especiais.",
+      "Corte moderno com degradê suave nas laterais e nuca, realizado com máquina de precisão para criar transições perfeitas. Técnica que proporciona visual limpo e contemporâneo, com acabamento refinado nas bordas e contornos. Inclui lavagem e finalização com produtos profissionais para um resultado impecável.",
     duracao: "30 min",
   },
   {
-    nome: "Corte Maquina e Tesoura",
+    nome: "Corte Disfarçado com Tesoura",
     preco: 35,
     descricao:
       "Corte versátil que combina a precisão da máquina nas laterais e nuca com o trabalho detalhado da tesoura na parte superior. Ideal para quem busca um visual equilibrado entre o clássico e o moderno. Inclui lavagem e finalização com produtos profissionais.",
