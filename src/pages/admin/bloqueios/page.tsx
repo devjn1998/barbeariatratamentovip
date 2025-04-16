@@ -49,7 +49,7 @@ export default function AdminBloqueiosPage() {
     // Gere sua lista de horários padrão aqui
     // Exemplo: ['09:00', '10:00', ..., '17:00']
     const horarios = [];
-    for (let hour = 9; hour <= 17; hour++) {
+    for (let hour = 7; hour <= 21; hour++) {
       // Adicione lógica para intervalos, almoço, etc., se necessário
       horarios.push(`${String(hour).padStart(2, "0")}:00`);
     }
