@@ -80,18 +80,18 @@ export default function AdminBloqueiosPage() {
       const agendamentosQuery = query(
         collection(db, "agendamentos"),
         where("date", "==", dateStr),
-        where("status", "==", "confirmado") // Assumindo que 'confirmado' é o status
+        where("status", "==", "confirmado") // <<< Busca agendamentos confirmados
       );
       const agendamentosSnapshot = await getDocs(agendamentosQuery);
       const agendamentosData = agendamentosSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...(doc.data() as { date: string; time: string }), // Ajuste os campos se necessário
+        ...(doc.data() as { date: string; time: string }),
       }));
       console.log(
-        "Dados de agendamentos lidos em fetchData:",
+        "Dados de agendamentos lidos em fetchData (para /admin/bloqueios):", // Log específico
         agendamentosData
       );
-      setAgendamentosConfirmados(agendamentosData);
+      setAgendamentosConfirmados(agendamentosData); // <<< Armazena no estado
     } catch (err) {
       console.error("Erro ao buscar dados:", err);
       setError("Falha ao carregar os dados. Tente novamente.");
@@ -213,7 +213,6 @@ export default function AdminBloqueiosPage() {
             const isBooked = agendamentosConfirmados.some(
               (a) => a.time === time
             );
-            const isUnavailable = isManuallyBlocked || isBooked;
 
             return (
               <li

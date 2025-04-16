@@ -52,51 +52,69 @@ async function getUnavailableTimes(date: dayjs.Dayjs): Promise<string[]> {
 
   try {
     // 1. Buscar agendamentos confirmados
+    console.log(
+      `[getUnavailableTimes] Query: agendamentos where date == ${dateStr} AND status == 'confirmado'`
+    );
     const agendamentosQuery = query(
       collection(db, "agendamentos"),
-      where("date", "==", dateStr), // <- CORRIGIDO: usar 'date' como no Firestore
-      where("status", "==", "confirmado")
+      where("date", "==", dateStr),
+      where("status", "==", "confirmado") // <<< IMPORTANTE: Verifica o status 'confirmado'
     );
     const agendamentosSnapshot = await getDocs(agendamentosQuery);
-    agendamentosSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.time) {
-        // <- CORRIGIDO: usar 'time' como no Firestore
-        unavailableTimes.add(data.time);
-      }
-    });
     console.log(
       `[getUnavailableTimes] Agendamentos confirmados encontrados: ${agendamentosSnapshot.size}`
     );
+    agendamentosSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.time) {
+        console.log(
+          `[getUnavailableTimes] Adicionando horário indisponível (Agendamento Confirmado): ${data.time} (ID: ${doc.id})`
+        ); // Log detalhado
+        unavailableTimes.add(data.time);
+      } else {
+        console.warn(
+          `[getUnavailableTimes] Agendamento confirmado sem campo 'time': ${doc.id}`
+        );
+      }
+    });
 
     // 2. Buscar bloqueios manuais
+    console.log(
+      `[getUnavailableTimes] Query: bloqueios where date == ${dateStr}`
+    );
     const bloqueiosQuery = query(
       collection(db, "bloqueios"),
       where("date", "==", dateStr)
     );
     const bloqueiosSnapshot = await getDocs(bloqueiosQuery);
-    bloqueiosSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.time) {
-        unavailableTimes.add(data.time);
-      }
-    });
     console.log(
       `[getUnavailableTimes] Bloqueios manuais encontrados: ${bloqueiosSnapshot.size}`
     );
+    bloqueiosSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.time) {
+        console.log(
+          `[getUnavailableTimes] Adicionando horário indisponível (Bloqueio Manual): ${data.time} (ID: ${doc.id})`
+        ); // Log detalhado
+        unavailableTimes.add(data.time);
+      } else {
+        console.warn(
+          `[getUnavailableTimes] Bloqueio manual sem campo 'time': ${doc.id}`
+        );
+      }
+    });
   } catch (error) {
     console.error(
       "[getUnavailableTimes] Erro ao buscar horários indisponíveis:",
       error
     );
     toast.error("Erro ao verificar disponibilidade. Tente novamente.");
-    // Retornar vazio ou lançar erro dependendo de como quer lidar com falhas
     return [];
   }
 
   const result = Array.from(unavailableTimes);
   console.log(
-    `[getUnavailableTimes] Horários indisponíveis finais para ${dateStr}:`,
+    `[getUnavailableTimes] Horários indisponíveis FINAIS para ${dateStr}:`,
     result
   );
   return result;
