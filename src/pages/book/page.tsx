@@ -2,8 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { servicos, Service } from "../../data/services";
-import { db } from "../../config/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import api from "../../services/api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import "dayjs/locale/pt-br";
@@ -43,83 +42,6 @@ interface DadosAgendamento {
   metodoPagamento?: string; // Adicionado para envio
 }
 
-// --- Função para buscar horários indisponíveis (agendamentos confirmados + bloqueios) ---
-async function getUnavailableTimes(date: dayjs.Dayjs): Promise<string[]> {
-  const dateStr = date.format("YYYY-MM-DD");
-  let unavailableTimes = new Set<string>();
-
-  console.log(`[getUnavailableTimes] Buscando indisponíveis para ${dateStr}`);
-
-  try {
-    // 1. Buscar agendamentos confirmados
-    console.log(
-      `[getUnavailableTimes] Query: agendamentos where date == ${dateStr} AND status == 'confirmado'`
-    );
-    const agendamentosQuery = query(
-      collection(db, "agendamentos"),
-      where("date", "==", dateStr),
-      where("status", "==", "confirmado") // <<< IMPORTANTE: Verifica o status 'confirmado'
-    );
-    const agendamentosSnapshot = await getDocs(agendamentosQuery);
-    console.log(
-      `[getUnavailableTimes] Agendamentos confirmados encontrados: ${agendamentosSnapshot.size}`
-    );
-    agendamentosSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.time) {
-        console.log(
-          `[getUnavailableTimes] Adicionando horário indisponível (Agendamento Confirmado): ${data.time} (ID: ${doc.id})`
-        ); // Log detalhado
-        unavailableTimes.add(data.time);
-      } else {
-        console.warn(
-          `[getUnavailableTimes] Agendamento confirmado sem campo 'time': ${doc.id}`
-        );
-      }
-    });
-
-    // 2. Buscar bloqueios manuais
-    console.log(
-      `[getUnavailableTimes] Query: bloqueios where date == ${dateStr}`
-    );
-    const bloqueiosQuery = query(
-      collection(db, "bloqueios"),
-      where("date", "==", dateStr)
-    );
-    const bloqueiosSnapshot = await getDocs(bloqueiosQuery);
-    console.log(
-      `[getUnavailableTimes] Bloqueios manuais encontrados: ${bloqueiosSnapshot.size}`
-    );
-    bloqueiosSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.time) {
-        console.log(
-          `[getUnavailableTimes] Adicionando horário indisponível (Bloqueio Manual): ${data.time} (ID: ${doc.id})`
-        ); // Log detalhado
-        unavailableTimes.add(data.time);
-      } else {
-        console.warn(
-          `[getUnavailableTimes] Bloqueio manual sem campo 'time': ${doc.id}`
-        );
-      }
-    });
-  } catch (error) {
-    console.error(
-      "[getUnavailableTimes] Erro ao buscar horários indisponíveis:",
-      error
-    );
-    toast.error("Erro ao verificar disponibilidade. Tente novamente.");
-    return [];
-  }
-
-  const result = Array.from(unavailableTimes);
-  console.log(
-    `[getUnavailableTimes] Horários indisponíveis FINAIS para ${dateStr}:`,
-    result
-  );
-  return result;
-}
-
 export default function PaginaAgendamento() {
   const [dataSelecionada, setDataSelecionada] = useState("");
   const [horarioSelecionado, setHorarioSelecionado] = useState("");
@@ -136,39 +58,48 @@ export default function PaginaAgendamento() {
   const [escolhendoPagamento, setEscolhendoPagamento] = useState(false);
   const navegar = useNavigate();
 
-  // Efeito para buscar horários indisponíveis DIRETAMENTE DO FIRESTORE quando a data muda
+  // --- REATIVADO: buscarHorariosOcupados que usa a API ---
+  const buscarHorariosOcupados = useCallback(async (data: string) => {
+    setLoadingHorarios(true);
+    setHorariosIndisponiveis([]); // Limpa antes de buscar
+    try {
+      console.log(`[API] Buscando horários ocupados para ${data}...`);
+      // Chama o endpoint do backend
+      const response = await api.get(`/api/disponibilidade?data=${data}`);
+      const ocupados = response.data.horariosOcupados || [];
+      console.log(`[API] Horários ocupados recebidos para ${data}:`, ocupados);
+      setHorariosIndisponiveis(ocupados);
+    } catch (error: any) {
+      console.error("[API] Erro ao buscar disponibilidade:", error);
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Erro ao buscar horários.";
+      toast.error(`Erro ao buscar horários: ${errorMsg}`);
+      setHorariosIndisponiveis([]); // Limpa em caso de erro
+    } finally {
+      setLoadingHorarios(false);
+    }
+  }, []); // useCallback sem dependências extras
+
+  // Efeito para buscar horários via API quando a data muda
   useEffect(() => {
     if (dataSelecionada) {
-      // Converte a string da data para um objeto dayjs para a função getUnavailableTimes
-      const dateObj = dayjs.utc(dataSelecionada); // Usar UTC para consistência
-      if (!dateObj.isValid()) {
-        console.error("Data selecionada inválida:", dataSelecionada);
-        setHorariosIndisponiveis([]); // Limpa se a data for inválida
-        setLoadingHorarios(false);
+      // Validação simples da data antes de chamar a API
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(dataSelecionada) ||
+        !dayjs(dataSelecionada).isValid()
+      ) {
+        console.error("Formato de data inválido para API:", dataSelecionada);
+        setHorariosIndisponiveis([]);
         return;
       }
-
-      const fetchFirestoreAvailability = async () => {
-        setLoadingHorarios(true);
-        setHorariosIndisponiveis([]); // Limpa antes de buscar
-        try {
-          const unavailable = await getUnavailableTimes(dateObj);
-          setHorariosIndisponiveis(unavailable);
-        } catch (error) {
-          // O erro já é tratado dentro de getUnavailableTimes com toast
-          setHorariosIndisponiveis([]); // Garante limpeza em caso de erro não capturado
-        } finally {
-          setLoadingHorarios(false);
-        }
-      };
-
-      fetchFirestoreAvailability();
+      buscarHorariosOcupados(dataSelecionada); // Chama a função que usa a API
     } else {
       // Limpa os horários se a data for desmarcada
       setHorariosIndisponiveis([]);
     }
-    // Dependência continua sendo a string dataSelecionada
-  }, [dataSelecionada]);
+  }, [dataSelecionada, buscarHorariosOcupados]); // Adiciona buscarHorariosOcupados como dependência
 
   // Calcular horários disponíveis sempre que os indisponíveis mudarem
   useEffect(() => {

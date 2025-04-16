@@ -4,5 +4,12 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if true;  // Modo de teste - Mude para produção depois
     }
+    // --- Agendamentos ---
+    match /agendamentos/{agendamentoId} {
+      allow read, update, delete: if request.auth != null; // Leitura de doc específico requer auth
+    }
+    match /agendamentos {
+       allow list: if request.auth != null; // Listar (query) requer auth
+    }
   }
 } 

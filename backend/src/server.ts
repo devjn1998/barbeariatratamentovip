@@ -1459,62 +1459,85 @@ app.delete("/api/agendamentos/:id", async (req: Request, res: Response) => {
 
 // Modificar a rota de verificação de disponibilidade atual
 app.get("/api/disponibilidade", async (req: Request, res: Response) => {
+  const dataQuery = req.query.data as string; // Ex: '2024-03-15'
+  const routeStartTime = Date.now();
+  console.log(
+    `[Disponibilidade INÍCIO ${routeStartTime}] Recebida consulta para data: ${dataQuery}`
+  );
+
+  // Validação básica da data
+  if (!dataQuery || !/^\d{4}-\d{2}-\d{2}$/.test(dataQuery)) {
+    console.warn(
+      `[Disponibilidade ${routeStartTime}] Data inválida recebida: ${dataQuery}`
+    );
+    return res
+      .status(400)
+      .json({ message: "Formato de data inválido. Use YYYY-MM-DD." });
+  }
+
+  const unavailableTimes = new Set<string>();
+
   try {
-    const { data } = req.query;
-
-    if (!data || typeof data !== "string") {
-      return res
-        .status(400)
-        .json({
-          error: "Parâmetro 'data' é obrigatório e deve ser uma string.",
-        });
-    }
-    // Adicionar validação de formato YYYY-MM-DD seria ideal aqui
-
-    console.log(`[Disponibilidade] Verificando horários para data: ${data}`);
-
+    // 1. Buscar agendamentos confirmados para a data
+    console.time(`[Disponibilidade ${routeStartTime}] Query Agendamentos`);
     const agendamentosRef = collection(db, "agendamentos");
-
-    // --- MUDANÇA AQUI: Adicionar filtro de status ---
-    // Considera ocupado apenas se o status for 'agendado' (pago online)
-    // ou 'confirmado' (pagamento presencial confirmado pelo admin).
-    // Ignora 'aguardando pagamento'.
-    const q = query(
+    const agendamentosQuery = query(
       agendamentosRef,
-      where("data", "==", data),
-      where("status", "in", ["agendado", "confirmado"]) // <--- Filtro adicionado
+      where("date", "==", dataQuery),
+      where("status", "==", "confirmado") // <<< Status confirmado
     );
-    // --- FIM DA MUDANÇA ---
-
-    console.time(
-      `[Disponibilidade] Consulta Firestore para ${data} com filtro de status`
-    );
-    const querySnapshot = await getDocs(q);
-    console.timeEnd(
-      `[Disponibilidade] Consulta Firestore para ${data} com filtro de status`
-    );
-
-    const horariosOcupados = querySnapshot.docs.map(
-      (doc) => doc.data().horario
-    );
+    const agendamentosSnapshot = await getDocs(agendamentosQuery);
+    console.timeEnd(`[Disponibilidade ${routeStartTime}] Query Agendamentos`);
     console.log(
-      `[Disponibilidade] Horários ocupados (status agendado/confirmado) para ${data}: ${horariosOcupados.join(
-        ", "
-      )}`
+      `[Disponibilidade ${routeStartTime}] Agendamentos confirmados encontrados: ${agendamentosSnapshot.size}`
     );
-
-    console.log(`[Disponibilidade] Enviando resposta para ${data}:`, {
-      horariosOcupados,
+    agendamentosSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.time) {
+        unavailableTimes.add(data.time);
+      } else {
+        console.warn(
+          `[Disponibilidade ${routeStartTime}] Agendamento confirmado ${doc.id} sem campo 'time'.`
+        );
+      }
     });
-    return res.json({ horariosOcupados });
+
+    // 2. Buscar bloqueios manuais para a data
+    console.time(`[Disponibilidade ${routeStartTime}] Query Bloqueios`);
+    const bloqueiosRef = collection(db, "bloqueios");
+    const bloqueiosQuery = query(bloqueiosRef, where("date", "==", dataQuery));
+    const bloqueiosSnapshot = await getDocs(bloqueiosQuery);
+    console.timeEnd(`[Disponibilidade ${routeStartTime}] Query Bloqueios`);
+    console.log(
+      `[Disponibilidade ${routeStartTime}] Bloqueios manuais encontrados: ${bloqueiosSnapshot.size}`
+    );
+    bloqueiosSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.time) {
+        unavailableTimes.add(data.time);
+      } else {
+        console.warn(
+          `[Disponibilidade ${routeStartTime}] Bloqueio manual ${doc.id} sem campo 'time'.`
+        );
+      }
+    });
+
+    const result = Array.from(unavailableTimes);
+    console.log(
+      `[Disponibilidade FIM ${routeStartTime}] Horários indisponíveis para ${dataQuery}: ${result}. Tempo total: ${
+        Date.now() - routeStartTime
+      }ms`
+    );
+    // Retorna a lista combinada de horários ocupados
+    return res.status(200).json({ horariosOcupados: result });
   } catch (error: any) {
     console.error(
-      `[Disponibilidade] Erro ao verificar disponibilidade para data ${req.query.data}:`,
+      `[Disponibilidade ERRO ${routeStartTime}] Erro ao buscar disponibilidade para ${dataQuery}:`,
       error
     );
     return res.status(500).json({
-      error: "Erro ao verificar disponibilidade",
-      details: error.message || "Erro interno do servidor",
+      message: "Erro interno ao verificar disponibilidade.",
+      error: error.message,
     });
   }
 });
