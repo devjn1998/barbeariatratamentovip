@@ -3,9 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { servicos, Service } from "../../data/services";
 import api from "../../services/api";
+import { db } from "../../config/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 
 // Horários de funcionamento padrão
 const TODOS_HORARIOS = [
+  "07:00",
+  "08:00",
   "09:00",
   "10:00",
   "11:00",
@@ -34,6 +42,50 @@ interface DadosAgendamento {
   metodoPagamento?: string; // Adicionado para envio
 }
 
+// --- Função para buscar horários indisponíveis (exemplo) ---
+// (Esta função pode já existir ou você pode precisar criá-la/adaptá-la)
+async function getUnavailableTimes(date: dayjs.Dayjs): Promise<string[]> {
+  const dateStr = date.format("YYYY-MM-DD");
+  let unavailableTimes = new Set<string>();
+
+  try {
+    // 1. Buscar agendamentos confirmados
+    const agendamentosQuery = query(
+      collection(db, "agendamentos"),
+      where("date", "==", dateStr),
+      where("status", "==", "confirmado") // Confirme o nome do status
+    );
+    const agendamentosSnapshot = await getDocs(agendamentosQuery);
+    agendamentosSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.time) {
+        // Certifique-se que o campo 'time' existe
+        unavailableTimes.add(data.time);
+      }
+    });
+
+    // 2. Buscar bloqueios manuais
+    const bloqueiosQuery = query(
+      collection(db, "bloqueios"),
+      where("date", "==", dateStr)
+    );
+    const bloqueiosSnapshot = await getDocs(bloqueiosQuery);
+    bloqueiosSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.time) {
+        // Certifique-se que o campo 'time' existe
+        unavailableTimes.add(data.time);
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao buscar horários indisponíveis:", error);
+    // Trate o erro como apropriado - talvez retornar todos como indisponíveis ou lançar o erro
+    throw new Error("Não foi possível verificar a disponibilidade.");
+  }
+
+  return Array.from(unavailableTimes);
+}
+
 export default function PaginaAgendamento() {
   const [dataSelecionada, setDataSelecionada] = useState("");
   const [horarioSelecionado, setHorarioSelecionado] = useState("");
@@ -49,6 +101,9 @@ export default function PaginaAgendamento() {
     useState<string[]>(TODOS_HORARIOS); // Inicia com todos
   const [escolhendoPagamento, setEscolhendoPagamento] = useState(false);
   const navegar = useNavigate();
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
 
   // Buscar horários indisponíveis quando a data muda
   const buscarHorariosOcupados = useCallback(async (data: string) => {
@@ -252,6 +307,47 @@ export default function PaginaAgendamento() {
       setProcessingPayment(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchAvailability = async () => {
+        setIsLoadingAvailability(true);
+        try {
+          // Sua lista de horários *potenciais* do dia
+          const allPossibleSlots = [
+            "09:00",
+            "10:00",
+            "11:00",
+            "12:00",
+            "14:00",
+            "15:00",
+            "16:00",
+            "17:00",
+          ]; // Ajuste conforme sua lógica
+
+          // Busca os horários que JÁ ESTÃO OCUPADOS (confirmados ou bloqueados)
+          const unavailableTimes = await getUnavailableTimes(selectedDate);
+
+          // Filtra os horários potenciais, mantendo apenas os que NÃO estão na lista de indisponíveis
+          const finalAvailableSlots = allPossibleSlots.filter(
+            (slot) => !unavailableTimes.includes(slot)
+          );
+
+          setAvailableSlots(finalAvailableSlots);
+        } catch (error) {
+          console.error("Erro ao buscar disponibilidade:", error);
+          setAvailableSlots([]); // Limpa os slots em caso de erro
+          // Mostre uma mensagem de erro para o usuário
+        } finally {
+          setIsLoadingAvailability(false);
+        }
+      };
+
+      fetchAvailability();
+    } else {
+      setAvailableSlots([]); // Limpa se nenhuma data estiver selecionada
+    }
+  }, [selectedDate]); // Dependência: selectedDate
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
