@@ -14,6 +14,7 @@ import Login from "./pages/admin/Login";
 import HomePage from "./pages/home";
 import PaymentPage from "./payment/page";
 import ServicesPage from "./services/page";
+import AdminBloqueiosPage from "./pages/admin/bloqueios/page";
 
 function App() {
   return (
@@ -92,6 +93,16 @@ function App() {
               <ProtectedRoute>
                 <AdminLayout>
                   <LimpezaDados />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/bloqueios"
+            element={
+              <ProtectedRoute>
+                <AdminLayout>
+                  <AdminBloqueiosPage />
                 </AdminLayout>
               </ProtectedRoute>
             }
