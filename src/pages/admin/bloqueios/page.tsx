@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { db } from "../../../config/firebase"; // Ajuste o caminho se necessário
+import { db, auth } from "../../../config/firebase"; // Ajuste o caminho se necessário
 import {
   collection,
   query,
@@ -103,9 +103,25 @@ export default function AdminBloqueiosPage() {
   // --- Funções para bloquear/desbloquear ---
   const handleBlockSlot = async (time: string) => {
     setIsLoading(true);
+    setError(null); // Limpa erros anteriores
+
+    // --- VERIFICAÇÃO DE AUTENTICAÇÃO NO CLIENTE ---
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.error("Usuário não autenticado no cliente ao tentar bloquear.");
+      setError("Erro: Usuário não autenticado. Faça login novamente.");
+      setIsLoading(false);
+      alert("Sua sessão pode ter expirado. Por favor, faça login novamente."); // Alerta para o usuário
+      // Opcional: redirecionar para a página de login
+      // window.location.href = '/admin/login';
+      return;
+    }
+    // --- Fim da verificação ---
+
+    console.log("Usuário autenticado no cliente:", currentUser.uid); // Log para confirmar
+
     const dateStr = selectedDate.format("YYYY-MM-DD");
     try {
-      // Verifica se já não existe um bloqueio ou agendamento
       const isBlocked = bloqueios.some((b) => b.time === time);
       const isBooked = agendamentosConfirmados.some((a) => a.time === time);
 
@@ -115,18 +131,26 @@ export default function AdminBloqueiosPage() {
         return;
       }
 
+      console.log(
+        `Tentando adicionar bloqueio: { date: ${dateStr}, time: ${time} }`
+      ); // Log dos dados
       await addDoc(collection(db, "bloqueios"), {
         date: dateStr,
         time: time,
-        // Pode adicionar um campo createdAt se quiser
-        // createdAt: Timestamp.now()
       });
-      // Rebusca os dados para atualizar a UI
-      await fetchData(selectedDate);
+      console.log("Bloqueio adicionado com sucesso."); // Log de sucesso
+      await fetchData(selectedDate); // Rebusca dados
     } catch (err) {
-      console.error("Erro ao bloquear horário:", err);
-      setError("Falha ao bloquear o horário.");
-      setIsLoading(false); // Garante que o loading termine em caso de erro
+      console.error("Erro ao bloquear horário:", err); // Mantém o log do erro original
+      // Tenta dar uma mensagem mais específica se for erro de permissão
+      if (err instanceof Error && err.message.includes("permission")) {
+        setError(
+          "Falha ao bloquear: Permissões insuficientes. Verifique as regras do Firestore e o status de login."
+        );
+      } else {
+        setError("Falha ao bloquear o horário. Tente novamente.");
+      }
+      setIsLoading(false);
     }
   };
 
