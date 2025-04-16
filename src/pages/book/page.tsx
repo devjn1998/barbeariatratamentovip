@@ -2,13 +2,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { servicos, Service } from "../../data/services";
-import api from "../../services/api";
 import { db } from "../../config/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import "dayjs/locale/pt-br";
 
 dayjs.extend(utc);
+dayjs.locale("pt-br");
 
 // Horários de funcionamento padrão
 const TODOS_HORARIOS = [
@@ -42,27 +43,31 @@ interface DadosAgendamento {
   metodoPagamento?: string; // Adicionado para envio
 }
 
-// --- Função para buscar horários indisponíveis (exemplo) ---
-// (Esta função pode já existir ou você pode precisar criá-la/adaptá-la)
+// --- Função para buscar horários indisponíveis (agendamentos confirmados + bloqueios) ---
 async function getUnavailableTimes(date: dayjs.Dayjs): Promise<string[]> {
   const dateStr = date.format("YYYY-MM-DD");
   let unavailableTimes = new Set<string>();
+
+  console.log(`[getUnavailableTimes] Buscando indisponíveis para ${dateStr}`);
 
   try {
     // 1. Buscar agendamentos confirmados
     const agendamentosQuery = query(
       collection(db, "agendamentos"),
-      where("date", "==", dateStr),
-      where("status", "==", "confirmado") // Confirme o nome do status
+      where("date", "==", dateStr), // <- CORRIGIDO: usar 'date' como no Firestore
+      where("status", "==", "confirmado")
     );
     const agendamentosSnapshot = await getDocs(agendamentosQuery);
     agendamentosSnapshot.forEach((doc) => {
       const data = doc.data();
       if (data.time) {
-        // Certifique-se que o campo 'time' existe
+        // <- CORRIGIDO: usar 'time' como no Firestore
         unavailableTimes.add(data.time);
       }
     });
+    console.log(
+      `[getUnavailableTimes] Agendamentos confirmados encontrados: ${agendamentosSnapshot.size}`
+    );
 
     // 2. Buscar bloqueios manuais
     const bloqueiosQuery = query(
@@ -73,17 +78,28 @@ async function getUnavailableTimes(date: dayjs.Dayjs): Promise<string[]> {
     bloqueiosSnapshot.forEach((doc) => {
       const data = doc.data();
       if (data.time) {
-        // Certifique-se que o campo 'time' existe
         unavailableTimes.add(data.time);
       }
     });
+    console.log(
+      `[getUnavailableTimes] Bloqueios manuais encontrados: ${bloqueiosSnapshot.size}`
+    );
   } catch (error) {
-    console.error("Erro ao buscar horários indisponíveis:", error);
-    // Trate o erro como apropriado - talvez retornar todos como indisponíveis ou lançar o erro
-    throw new Error("Não foi possível verificar a disponibilidade.");
+    console.error(
+      "[getUnavailableTimes] Erro ao buscar horários indisponíveis:",
+      error
+    );
+    toast.error("Erro ao verificar disponibilidade. Tente novamente.");
+    // Retornar vazio ou lançar erro dependendo de como quer lidar com falhas
+    return [];
   }
 
-  return Array.from(unavailableTimes);
+  const result = Array.from(unavailableTimes);
+  console.log(
+    `[getUnavailableTimes] Horários indisponíveis finais para ${dateStr}:`,
+    result
+  );
+  return result;
 }
 
 export default function PaginaAgendamento() {
@@ -92,7 +108,7 @@ export default function PaginaAgendamento() {
   const [servicoSelecionado, setServicoSelecionado] = useState("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [loadingHorarios, setLoadingHorarios] = useState(false); // Renomeado de loadingCheck
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [horariosIndisponiveis, setHorariosIndisponiveis] = useState<string[]>(
     []
@@ -101,41 +117,40 @@ export default function PaginaAgendamento() {
     useState<string[]>(TODOS_HORARIOS); // Inicia com todos
   const [escolhendoPagamento, setEscolhendoPagamento] = useState(false);
   const navegar = useNavigate();
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
 
-  // Buscar horários indisponíveis quando a data muda
-  const buscarHorariosOcupados = useCallback(async (data: string) => {
-    setLoadingHorarios(true);
-    setHorariosIndisponiveis([]); // Limpa antes de buscar
-    try {
-      console.log(`Buscando horários ocupados para ${data}...`);
-      // Usar a rota /api/disponibilidade que retorna { horariosOcupados: [...] }
-      const response = await api.get(`/api/disponibilidade?data=${data}`);
-      const ocupados = response.data.horariosOcupados || [];
-      console.log(`Horários ocupados recebidos para ${data}:`, ocupados);
-      setHorariosIndisponiveis(ocupados);
-    } catch (error) {
-      console.error("Erro ao carregar horários ocupados:", error);
-      toast.error(
-        "Erro ao carregar horários disponíveis. Tente selecionar a data novamente."
-      );
-      setHorariosIndisponiveis([]); // Limpa em caso de erro
-    } finally {
-      setLoadingHorarios(false);
-    }
-  }, []); // Dependências vazias, pois a função em si não muda
-
+  // Efeito para buscar horários indisponíveis DIRETAMENTE DO FIRESTORE quando a data muda
   useEffect(() => {
     if (dataSelecionada) {
-      buscarHorariosOcupados(dataSelecionada);
+      // Converte a string da data para um objeto dayjs para a função getUnavailableTimes
+      const dateObj = dayjs.utc(dataSelecionada); // Usar UTC para consistência
+      if (!dateObj.isValid()) {
+        console.error("Data selecionada inválida:", dataSelecionada);
+        setHorariosIndisponiveis([]); // Limpa se a data for inválida
+        setLoadingHorarios(false);
+        return;
+      }
+
+      const fetchFirestoreAvailability = async () => {
+        setLoadingHorarios(true);
+        setHorariosIndisponiveis([]); // Limpa antes de buscar
+        try {
+          const unavailable = await getUnavailableTimes(dateObj);
+          setHorariosIndisponiveis(unavailable);
+        } catch (error) {
+          // O erro já é tratado dentro de getUnavailableTimes com toast
+          setHorariosIndisponiveis([]); // Garante limpeza em caso de erro não capturado
+        } finally {
+          setLoadingHorarios(false);
+        }
+      };
+
+      fetchFirestoreAvailability();
     } else {
       // Limpa os horários se a data for desmarcada
       setHorariosIndisponiveis([]);
-      setHorariosDisponiveis(TODOS_HORARIOS);
     }
-  }, [dataSelecionada, buscarHorariosOcupados]);
+    // Dependência continua sendo a string dataSelecionada
+  }, [dataSelecionada]);
 
   // Calcular horários disponíveis sempre que os indisponíveis mudarem
   useEffect(() => {
@@ -143,6 +158,13 @@ export default function PaginaAgendamento() {
       (h) => !horariosIndisponiveis.includes(h)
     );
     setHorariosDisponiveis(disponiveis);
+    // Se o horário que estava selecionado ficou indisponível, limpa a seleção
+    if (horarioSelecionado && !disponiveis.includes(horarioSelecionado)) {
+      console.log(
+        `Horário selecionado ${horarioSelecionado} tornou-se indisponível. Limpando seleção.`
+      );
+      setHorarioSelecionado("");
+    }
   }, [horariosIndisponiveis]);
 
   // Validar formulário
@@ -208,18 +230,21 @@ export default function PaginaAgendamento() {
       return;
     }
 
-    // Verifica se o horário selecionado ainda está disponível localmente
+    // A verificação se o horário está disponível é feita implicitamente
+    // pelo estado `horariosDisponiveis` e pelo `useEffect` que limpa
+    // `horarioSelecionado` se ele ficar indisponível.
+    // O botão do horário já estará desabilitado se não estiver em `horariosDisponiveis`.
+    // Podemos adicionar uma checagem extra por segurança, mas não deveria ser necessária.
     if (!horariosDisponiveis.includes(horarioSelecionado)) {
       toast.error(
-        "Ops! Este horário não está mais disponível. Por favor, escolha outro."
+        "O horário selecionado não está disponível. Por favor, escolha outro."
       );
-      setHorarioSelecionado(""); // Limpa a seleção inválida
-      // Opcional: Chamar buscarHorariosOcupados novamente para garantir a atualização visual
-      // buscarHorariosOcupados(dataSelecionada);
+      // O estado horarioSelecionado já deve ter sido limpo pelo useEffect,
+      // mas podemos garantir aqui se necessário:
+      // setHorarioSelecionado("");
       return;
     }
 
-    // Se chegou aqui, o horário é considerado válido localmente
     console.log("Horário selecionado é válido, mostrando opções de pagamento.");
     setEscolhendoPagamento(true);
   };
@@ -275,79 +300,40 @@ export default function PaginaAgendamento() {
         metodoPagamento: "dinheiro",
       };
 
-      const response = await api.post(
-        "/api/agendamentos/criar-pendente",
-        dadosAgendamento
-      );
+      const response = await fetch("/api/agendamentos/criar-pendente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dadosAgendamento),
+      });
 
-      if (response.status === 201 && response.data && response.data.id) {
-        console.log("Agendamento pendente criado:", response.data);
+      const responseData = await response.json();
+
+      if (response.ok && responseData.id) {
+        console.log("Agendamento pendente criado via API:", responseData);
         toast.success("Agendamento realizado! Pague no dia do serviço.");
         const params = new URLSearchParams({
           hour: horarioSelecionado,
           service: servicoSelecionado,
           name: nome,
           status: "pending",
+          id: responseData.id,
         });
         navegar(`/confirm?${params.toString()}`);
       } else {
         const errorMsg =
-          response.data?.message || "Falha ao criar agendamento pendente.";
+          responseData.message || "Falha ao criar agendamento pendente.";
         throw new Error(errorMsg);
       }
     } catch (error: any) {
-      console.error("Erro ao criar agendamento pendente:", error);
+      console.error("Erro ao criar agendamento pendente via API:", error);
       const displayError =
-        error.response?.data?.message ||
-        error.message ||
-        "Erro ao criar agendamento. Tente novamente.";
+        error.message || "Erro ao criar agendamento. Tente novamente.";
       toast.error(displayError);
       setEscolhendoPagamento(false);
     } finally {
       setProcessingPayment(false);
     }
   };
-
-  useEffect(() => {
-    if (selectedDate) {
-      const fetchAvailability = async () => {
-        setIsLoadingAvailability(true);
-        try {
-          // Sua lista de horários *potenciais* do dia
-          const allPossibleSlots = [
-            "09:00",
-            "10:00",
-            "11:00",
-            "12:00",
-            "14:00",
-            "15:00",
-            "16:00",
-            "17:00",
-          ]; // Ajuste conforme sua lógica
-
-          // Busca os horários que JÁ ESTÃO OCUPADOS (confirmados ou bloqueados)
-          const unavailableTimes = await getUnavailableTimes(selectedDate);
-
-          // Filtra os horários potenciais, mantendo apenas os que NÃO estão na lista de indisponíveis
-          const finalAvailableSlots = allPossibleSlots.filter(
-            (slot) => !unavailableTimes.includes(slot)
-          );
-
-          setAvailableSlots(finalAvailableSlots);
-        } catch (error) {
-          console.error("Erro ao buscar disponibilidade:", error);
-          setAvailableSlots([]); // Limpa os slots em caso de erro
-          // Mostre uma mensagem de erro para o usuário
-        } finally {
-          setIsLoadingAvailability(false);
-        }
-      };
-
-      fetchAvailability();
-    } else {
-      setAvailableSlots([]); // Limpa se nenhuma data estiver selecionada
-    }
-  }, [selectedDate]); // Dependência: selectedDate
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

@@ -73,6 +73,7 @@ export default function AdminBloqueiosPage() {
         id: doc.id,
         ...(doc.data() as { date: string; time: string }),
       }));
+      console.log("Dados de bloqueios lidos em fetchData:", bloqueiosData);
       setBloqueios(bloqueiosData);
 
       // Buscar agendamentos confirmados
@@ -86,6 +87,10 @@ export default function AdminBloqueiosPage() {
         id: doc.id,
         ...(doc.data() as { date: string; time: string }), // Ajuste os campos se necessário
       }));
+      console.log(
+        "Dados de agendamentos lidos em fetchData:",
+        agendamentosData
+      );
       setAgendamentosConfirmados(agendamentosData);
     } catch (err) {
       console.error("Erro ao buscar dados:", err);
@@ -173,6 +178,12 @@ export default function AdminBloqueiosPage() {
       setIsLoading(false); // Garante que o loading termine em caso de erro
     }
   };
+
+  console.log("Renderizando AdminBloqueiosPage com bloqueios:", bloqueios); // <-- Adicionar Log
+  console.log(
+    "Renderizando AdminBloqueiosPage com agendamentos:",
+    agendamentosConfirmados
+  ); // <-- Adicionar Log
 
   // --- Renderização ---
   return (
