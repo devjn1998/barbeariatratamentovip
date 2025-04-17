@@ -10,6 +10,8 @@ import {
   AppointmentStatus,
   NormalizedAppointment,
 } from "../../types/appointment";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../../firebase/firebaseConfig";
 
 // Interface para dados do agendamento
 interface Agendamento {
@@ -76,9 +78,69 @@ export default function Agendamentos() {
   };
 
   // Carregar dados iniciais ou quando filtroData mudar
-  useEffect(() => {
-    carregarDados(filtroData || undefined); // Passa undefined se filtroData estiver vazio
-  }, [filtroData]);
+  useEffect(
+    () => {
+      const fetchAgendamentos = async () => {
+        setLoading(true);
+        try {
+          console.log("[Agendamentos] Iniciando busca...");
+
+          // MODIFICAÇÃO 1: Incluir status "aguardando pagamento" na consulta
+          const q = query(
+            collection(db, "agendamentos"),
+            where("status", "in", ["confirmado", "aguardando pagamento"])
+            // Outras condições aqui...
+          );
+
+          const querySnapshot = await getDocs(q);
+          console.log(
+            `[Agendamentos] Encontrados ${querySnapshot.size} documentos`
+          );
+
+          const agendamentosArr = querySnapshot.docs.map((doc) => {
+            const data = doc.data();
+            console.log(`[Agendamentos Debug] Documento raw:`, data); // Log para debug
+
+            // MODIFICAÇÃO 2: Lógica para lidar com ambos os formatos de dados
+            return {
+              id: doc.id,
+              // Campos principais - verifica ambos os formatos possíveis
+              date: data.date || data.data,
+              time: data.time || data.horario,
+              service: data.service || data.servico,
+              price: data.price || data.preco,
+              status: data.status,
+
+              // Campos formatados
+              formattedDate: formatarData(data.date || data.data),
+              formattedPrice: formatarPreco(data.price || data.preco),
+              statusText: traduzirStatus(data.status),
+
+              // Campos do cliente - verifica ambos os formatos possíveis
+              clientName: data.clientName || data.cliente?.nome || "",
+              clientPhone: data.clientPhone || data.cliente?.telefone || "",
+            };
+          });
+
+          console.log(
+            "[Agendamentos Data Check] Dados recebidos ANTES de setAgendamentos:",
+            agendamentosArr
+          );
+          setAgendamentos(agendamentosArr);
+        } catch (error) {
+          console.error("[Agendamentos] Erro ao buscar:", error);
+          toast.error("Erro ao carregar agendamentos");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchAgendamentos();
+    },
+    [
+      /* dependências aqui */
+    ]
+  );
 
   // Filtrar agendamentos baseado nos critérios selecionados
   const agendamentosFiltrados = agendamentos.filter((agendamento) => {
