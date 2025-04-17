@@ -265,6 +265,26 @@ export default function Agendamentos() {
     `[Agendamentos Render] Loading: ${loading}, Agendamentos Count: ${agendamentos.length}`
   );
 
+  // Adicione esta função antes do return do componente
+  const traduzirStatus = (status: string): string => {
+    switch (status?.toLowerCase()) {
+      case "agendado":
+        return "Agendado";
+      case "aguardando pagamento":
+        return "Aguardando Pagamento";
+      case "confirmado":
+        return "Confirmado";
+      case "cancelado":
+        return "Cancelado";
+      case "pendente":
+        return "Pendente";
+      case "concluido":
+        return "Concluído";
+      default:
+        return status || "Desconhecido";
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
