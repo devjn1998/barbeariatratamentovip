@@ -249,11 +249,14 @@ export default function PaginaAgendamento() {
         metodoPagamento: "dinheiro",
       };
 
-      const response = await fetch("/api/agendamentos/criar-pendente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dadosAgendamento),
-      });
+      const response = await fetch(
+        "https://barbeariatratamentovip.onrender.com/api/agendamentos/criar-pendente",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dadosAgendamento),
+        }
+      );
 
       const responseData = await response.json();
 
