@@ -13,6 +13,7 @@ import {
   setDoc,
   where,
   writeBatch,
+  addDoc,
 } from "firebase/firestore";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { adminDb, db } from "./config/firebase";
@@ -1748,127 +1749,69 @@ app.post(
   "/api/agendamentos/criar-pendente",
   async (req: Request, res: Response) => {
     const routeStartTime = Date.now();
-    console.log(`[Criar Pendente INÍCIO ${routeStartTime}] Rota iniciada.`);
+    console.log(
+      `[Criar Pendente INÍCIO ${routeStartTime}] Recebida requisição:`,
+      req.body
+    );
+
     try {
       const dadosAgendamento = req.body;
-      console.log(
-        `[Criar Pendente ${routeStartTime}] 📝 Dados recebidos:`,
-        dadosAgendamento
-      );
 
-      // 1. Validar dados recebidos
-      const validacao = validarDadosAgendamento(dadosAgendamento);
-      if (!validacao.valid) {
+      // 1. Validar os dados recebidos do frontend
+      const errosValidacao = validarDadosAgendamento(dadosAgendamento); // Use sua função de validação
+      if (errosValidacao.length > 0) {
         console.warn(
-          "⚠️ Tentativa de criar agendamento pendente com dados inválidos:",
-          validacao.errors
+          `[Criar Pendente ${routeStartTime}] Dados inválidos:`,
+          errosValidacao
         );
-        return res.status(400).json({
-          error: "Dados inválidos",
-          message: "Dados de agendamento inválidos",
-          details: validacao.errors,
-        });
-      }
-      if (
-        !isValidDate(dadosAgendamento.data) ||
-        !isValidTime(dadosAgendamento.horario)
-      ) {
-        return res.status(400).json({
-          error: "Formato de data/hora inválido",
-          message: "Verifique o formato da data (YYYY-MM-DD) e hora (HH:MM)",
-        });
+        return res
+          .status(400)
+          .json({ message: "Dados inválidos.", errors: errosValidacao });
       }
 
-      // 2. Verificar disponibilidade do horário
-      console.time(
-        `[Criar Pendente ${routeStartTime}] Consulta Disponibilidade`
-      );
-      const agendamentosRef = collection(db, "agendamentos");
-      const q = query(
-        agendamentosRef,
-        where("data", "==", dadosAgendamento.data),
-        where("horario", "==", dadosAgendamento.horario),
-        where("status", "in", [
-          "agendado",
-          "confirmado",
-          "aguardando pagamento",
-        ])
-      );
-      const querySnapshot = await getDocs(q);
-      console.timeEnd(
-        `[Criar Pendente ${routeStartTime}] Consulta Disponibilidade`
-      );
-
-      if (!querySnapshot.empty) {
-        console.warn(
-          `⏰ Horário indisponível (PENDENTE): ${dadosAgendamento.data} ${dadosAgendamento.horario}`
-        );
-        return res.status(409).json({
-          error: "Horário indisponível",
-          message:
-            "Este horário acabou de ser reservado. Por favor, escolha outro.",
-        });
-      }
-
-      // 3. Obter o preço do serviço (necessário buscar dos dados de serviço)
-      // TODO: Implementar busca do preço do serviço ou receber do frontend
-      const precoServico = dadosAgendamento.preco || 0; // Usar preço enviado ou default 0
-
-      // 4. Criar o objeto de agendamento
-      const agendamentoId = `cash_${Date.now()}`;
+      // 2. Preparar dados para salvar no Firestore
       const dadosParaSalvar = {
-        id: agendamentoId,
-        data: dadosAgendamento.data,
-        horario: dadosAgendamento.horario,
-        servico: dadosAgendamento.servico,
-        preco: precoServico,
-        cliente: {
-          nome: dadosAgendamento.cliente.nome,
-          telefone: dadosAgendamento.cliente.telefone,
-          // email é opcional
-          ...(dadosAgendamento.cliente.email && {
-            email: dadosAgendamento.cliente.email,
-          }),
-        },
-        status: "aguardando pagamento", // Status específico para pagamento presencial
-        metodoPagamento: "dinheiro",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        // Não associar a um paymentId do Mercado Pago
+        ...dadosAgendamento,
+        status: "aguardando pagamento", // Garante o status correto
+        metodoPagamento: "dinheiro", // Ou o valor que você usa para presencial
+        createdAt: serverTimestamp(), // Adiciona timestamp de criação
+        updatedAt: serverTimestamp(), // Adiciona timestamp de atualização
+        // Remova campos que não devem ir para o Firestore, se houver
+        // delete dadosParaSalvar.algumCampoExtra;
       };
 
-      // 5. Salvar na coleção 'agendamentos'
-      console.time(`[Criar Pendente ${routeStartTime}] Escrita Firestore`);
-      const agendamentoRef = doc(db, "agendamentos", agendamentoId);
-      await setDoc(agendamentoRef, dadosParaSalvar);
-      console.timeEnd(`[Criar Pendente ${routeStartTime}] Escrita Firestore`);
-
+      // 3. Adicionar o documento ao Firestore
       console.log(
-        `[Criar Pendente ${routeStartTime}] ✅ Agendamento pendente criado com sucesso. ID: ${agendamentoId}`
+        `[Criar Pendente ${routeStartTime}] Tentando adicionar ao Firestore...`
+      );
+      console.time(`[Criar Pendente ${routeStartTime}] Add Firestore`);
+      const docRef = await addDoc(
+        collection(db, "agendamentos"),
+        dadosParaSalvar
+      );
+      console.timeEnd(`[Criar Pendente ${routeStartTime}] Add Firestore`);
+      console.log(
+        `[Criar Pendente FIM ${routeStartTime}] Agendamento pendente criado com ID: ${
+          docRef.id
+        }. Tempo total: ${Date.now() - routeStartTime}ms`
       );
 
-      // 6. Retornar sucesso
-      console.log(
-        `[Criar Pendente FIM ${routeStartTime}] Rota concluída em ${
-          Date.now() - routeStartTime
-        }ms`
-      );
+      // 4. Retornar sucesso com o ID do novo agendamento
       return res.status(201).json({
-        ...dadosParaSalvar,
-        message: "Agendamento criado com sucesso. Pagamento pendente.",
+        // 201 Created é mais apropriado aqui
+        message: "Agendamento pendente criado com sucesso!",
+        id: docRef.id, // Envia o ID de volta para o frontend
+        // Opcional: retornar os dados salvos (sem timestamps do servidor ainda)
+        // agendamento: { ...dadosParaSalvar, id: docRef.id }
       });
     } catch (error: any) {
-      console.error("❌ Erro ao criar agendamento pendente:", error);
-      console.log(
-        `[Criar Pendente ERRO ${routeStartTime}] Erro na rota após ${
-          Date.now() - routeStartTime
-        }ms`
+      console.error(
+        `[Criar Pendente ERRO ${routeStartTime}] Erro ao criar agendamento pendente:`,
+        error
       );
       return res.status(500).json({
-        error: "Erro ao criar agendamento",
-        message:
-          error.message ||
-          "Ocorreu um erro interno ao processar sua solicitação",
+        message: "Erro interno ao criar agendamento.",
+        error: error.message,
       });
     }
   }
