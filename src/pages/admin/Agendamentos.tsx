@@ -11,7 +11,7 @@ import {
   NormalizedAppointment,
 } from "../../types/appointment";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
+import { db } from "../../config/firebase";
 
 // Interface para dados do agendamento
 interface Agendamento {
