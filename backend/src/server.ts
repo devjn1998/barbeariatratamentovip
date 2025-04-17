@@ -1758,26 +1758,27 @@ app.post(
       const dadosAgendamento = req.body;
 
       // 1. Validar os dados recebidos do frontend
-      const errosValidacao = validarDadosAgendamento(dadosAgendamento); // Use sua função de validação
-      if (errosValidacao.length > 0) {
+      const validacao = validarDadosAgendamento(dadosAgendamento);
+
+      // Verifica se a validação NÃO passou (valid === false)
+      if (!validacao.valid) {
+        // Usa o array 'validacao.errors' para log e resposta
         console.warn(
           `[Criar Pendente ${routeStartTime}] Dados inválidos:`,
-          errosValidacao
+          validacao.errors
         );
         return res
           .status(400)
-          .json({ message: "Dados inválidos.", errors: errosValidacao });
+          .json({ message: "Dados inválidos.", errors: validacao.errors });
       }
 
       // 2. Preparar dados para salvar no Firestore
       const dadosParaSalvar = {
         ...dadosAgendamento,
-        status: "aguardando pagamento", // Garante o status correto
-        metodoPagamento: "dinheiro", // Ou o valor que você usa para presencial
-        createdAt: serverTimestamp(), // Adiciona timestamp de criação
-        updatedAt: serverTimestamp(), // Adiciona timestamp de atualização
-        // Remova campos que não devem ir para o Firestore, se houver
-        // delete dadosParaSalvar.algumCampoExtra;
+        status: "aguardando pagamento",
+        metodoPagamento: "dinheiro",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
       // 3. Adicionar o documento ao Firestore
@@ -1798,11 +1799,8 @@ app.post(
 
       // 4. Retornar sucesso com o ID do novo agendamento
       return res.status(201).json({
-        // 201 Created é mais apropriado aqui
         message: "Agendamento pendente criado com sucesso!",
-        id: docRef.id, // Envia o ID de volta para o frontend
-        // Opcional: retornar os dados salvos (sem timestamps do servidor ainda)
-        // agendamento: { ...dadosParaSalvar, id: docRef.id }
+        id: docRef.id,
       });
     } catch (error: any) {
       console.error(
