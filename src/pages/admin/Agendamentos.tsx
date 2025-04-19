@@ -52,30 +52,21 @@ export default function Agendamentos() {
   const fetchAgendamentos = async (data?: string) => {
     try {
       setLoading(true);
-      let dadosAgendamentos: NormalizedAppointment[];
+      console.log(`Buscando agendamentos para data: ${data || "todos"}`);
 
+      let resultado;
       if (data) {
-        dadosAgendamentos = await getAppointmentsByDate(data);
+        // Garantir que a data está no formato correto (YYYY-MM-DD)
+        resultado = await getAppointmentsByDate(data);
       } else {
-        dadosAgendamentos = await getAllAppointments();
+        resultado = await getAllAppointments();
       }
 
-      // Ordenar por data e horário antes de definir o estado
-      dadosAgendamentos.sort((a, b) => {
-        const dateComparison = a.date.localeCompare(b.date);
-        if (dateComparison !== 0) return dateComparison;
-        return a.time.localeCompare(b.time);
-      });
-
-      console.log(
-        "[Agendamentos Data Check] Dados recebidos ANTES de setAgendamentos:",
-        JSON.stringify(dadosAgendamentos, null, 2)
-      );
-
-      setAgendamentos(dadosAgendamentos);
+      console.log(`Agendamentos encontrados: ${resultado.length}`);
+      setAgendamentos(resultado);
     } catch (error) {
-      console.error("Erro ao carregar agendamentos:", error);
-      toast.error("Não foi possível carregar os agendamentos");
+      console.error("Erro ao buscar agendamentos:", error);
+      toast.error("Erro ao buscar agendamentos");
     } finally {
       setLoading(false);
     }
@@ -178,6 +169,13 @@ export default function Agendamentos() {
       );
     }
 
+    // Filtro por data
+    if (filtroData && agendamento.date !== filtroData) {
+      // Verifique se estamos comparando no mesmo formato
+      // Ambos devem estar no formato YYYY-MM-DD para comparação
+      return false;
+    }
+
     return true;
   });
 
@@ -251,6 +249,19 @@ export default function Agendamentos() {
     fetchAgendamentos(); // Carrega todos
   };
 
+  // Encontrar o código que manipula o filtro de data
+  const handleFiltroDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const novaData = e.target.value;
+    setFiltroData(novaData);
+
+    // Chame a função fetchAgendamentos com a nova data
+    if (novaData) {
+      fetchAgendamentos(novaData);
+    } else {
+      fetchAgendamentos(); // Sem data = todos os agendamentos
+    }
+  };
+
   // Adicionar log antes do return
   console.log(
     `[Agendamentos Render] Loading: ${loading}, Agendamentos Count: ${agendamentos.length}`
@@ -284,9 +295,9 @@ export default function Agendamentos() {
           </label>
           <input
             type="date"
+            className="form-input rounded-md shadow-sm mt-1 block w-full"
             value={filtroData}
-            onChange={(e) => setFiltroData(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+            onChange={handleFiltroDataChange}
           />
         </div>
 

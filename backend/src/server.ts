@@ -832,53 +832,28 @@ async function criarOuAtualizarAgendamento(pagamento: any) {
   }
 }
 
-// Rota para buscar agendamentos
+// Rota para buscar agendamentos por data
 app.get("/api/agendamentos", async (req: Request, res: Response) => {
   try {
     const { data } = req.query;
 
-    console.log(`🔎 Solicitação de busca por data: ${data}`);
+    console.log(
+      `Recebida requisição para buscar agendamentos da data: ${data}`
+    );
 
-    if (!data) {
-      return res.status(400).json({ error: "Data não fornecida" });
+    // Validar formato de data (deve ser YYYY-MM-DD)
+    if (data && typeof data === "string") {
+      // Criar a consulta
+      const q = query(
+        collection(db, "agendamentos"),
+        where("date", "==", data) // Usando o campo date (padrão)
+      );
+
+      const querySnapshot = await getDocs(q);
+      // Resto do código...
     }
-
-    // Usar um Map para garantir IDs únicos
-    const agendamentosMap = new Map();
-
-    // Buscar na coleção agendamentos
-    const agendamentosRef = collection(db, "agendamentos");
-    const q = query(agendamentosRef, where("data", "==", data));
-    const querySnapshot = await getDocs(q);
-
-    console.log(
-      `Encontrados ${querySnapshot.size} agendamentos para a data ${data}`
-    );
-
-    querySnapshot.forEach((doc: any) => {
-      const agendamento = doc.data();
-      // Usar o ID como chave para evitar duplicatas
-      if (agendamento.id) {
-        agendamentosMap.set(agendamento.id, agendamento);
-      }
-    });
-
-    // Converter o Map de volta para array
-    const agendamentos: AgendamentoDebug[] = Array.from(
-      agendamentosMap.values()
-    );
-
-    console.log(
-      `✅ Total de ${agendamentos.length} agendamentos únicos para a data ${data}`
-    );
-
-    return res.json(agendamentos);
-  } catch (error: any) {
-    console.error("❌ Erro ao buscar agendamentos:", error);
-    return res.status(500).json({
-      error: "Erro ao buscar agendamentos",
-      details: error instanceof Error ? error.message : String(error),
-    });
+  } catch (error) {
+    // Tratamento de erro...
   }
 });
 

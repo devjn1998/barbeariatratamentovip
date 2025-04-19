@@ -37,6 +37,7 @@ interface DadosAgendamento {
   cliente: {
     nome: string;
     telefone: string;
+    email?: string; // Opcional
   };
   status?: string; // Adicionado para envio
   metodoPagamento?: string; // Adicionado para envio
@@ -56,6 +57,7 @@ export default function PaginaAgendamento() {
   const [horariosDisponiveis, setHorariosDisponiveis] =
     useState<string[]>(TODOS_HORARIOS); // Inicia com todos
   const [escolhendoPagamento, setEscolhendoPagamento] = useState(false);
+  const [email, setEmail] = useState("");
   const navegar = useNavigate();
 
   // --- REATIVADO: buscarHorariosOcupados que usa a API ---
@@ -236,50 +238,55 @@ export default function PaginaAgendamento() {
     }
 
     try {
+      // Formatado com os nomes em português que o backend espera
       const dadosAgendamento = {
-        date: dataSelecionada,
-        time: horarioSelecionado,
-        service: servicoSelecionado,
-        price: precoDoServico,
-        client: {
-          name: nome,
-          phone: telefone,
+        data: dataSelecionada,
+        horario: horarioSelecionado,
+        servico: servicoSelecionado,
+        preco: precoDoServico,
+        cliente: {
+          nome: nome,
+          telefone: telefone,
+          email: email || undefined,
         },
+        metodoPagamento: "dinheiro",
+        status: "aguardando pagamento",
       };
 
-      const response = await fetch(
-        "https://barbeariatratamentovip.onrender.com/api/agendamentos/criar-pendente",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dadosAgendamento),
-        }
+      console.log("Enviando dados para criação:", dadosAgendamento);
+
+      // Usar axios para a chamada API (assumindo que 'api' é sua instância do axios)
+      const response = await api.post(
+        "/api/admin/criar-pendente",
+        dadosAgendamento
       );
+      console.log("Resposta da API:", response.data);
 
-      const responseData = await response.json();
-
-      if (response.ok && responseData.id) {
-        console.log("Agendamento pendente criado via API:", responseData);
+      if (response.data && response.data.id) {
+        console.log("Agendamento pendente criado via API:", response.data);
         toast.success("Agendamento realizado! Pague no dia do serviço.");
+
+        // Navegar para página de confirmação
         const params = new URLSearchParams({
-          hour: horarioSelecionado,
           service: servicoSelecionado,
+          date: dataSelecionada,
+          time: horarioSelecionado,
           name: nome,
           status: "pending",
-          id: responseData.id,
+          id: response.data.id,
         });
+
         navegar(`/confirm?${params.toString()}`);
       } else {
         const errorMsg =
-          responseData.message || "Falha ao criar agendamento pendente.";
+          response.data?.message || "Falha ao criar agendamento pendente.";
         throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error("Erro ao criar agendamento pendente via API:", error);
-      const displayError =
-        error.message || "Erro ao criar agendamento. Tente novamente.";
-      toast.error(displayError);
-      setEscolhendoPagamento(false);
+      toast.error(
+        "Não foi possível criar seu agendamento. Por favor, tente novamente."
+      );
     } finally {
       setProcessingPayment(false);
     }
@@ -331,6 +338,23 @@ export default function PaginaAgendamento() {
                   placeholder="(XX) XXXXX-XXXX"
                   required
                   maxLength={15}
+                  disabled={processingPayment}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                  placeholder="Digite seu email"
                   disabled={processingPayment}
                 />
               </div>
