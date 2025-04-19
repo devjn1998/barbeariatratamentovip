@@ -77,7 +77,11 @@ export default function Agendamentos() {
     const fetchAgendamentos = async () => {
       setLoading(true);
       try {
-        console.log(`[Agendamentos] Iniciando busca para data: ${filtroData || "todas as datas"}`);
+        console.log(
+          `[Agendamentos] Iniciando busca para data: ${
+            filtroData || "todas as datas"
+          }`
+        );
 
         let q;
         const agendamentosCollection = collection(db, "agendamentos");
@@ -88,7 +92,7 @@ export default function Agendamentos() {
             agendamentosCollection,
             where("date", "==", filtroData)
           );
-          
+
           const qData = query(
             agendamentosCollection,
             where("data", "==", filtroData)
@@ -97,15 +101,16 @@ export default function Agendamentos() {
           // Executar ambas as consultas
           const [snapshotDate, snapshotData] = await Promise.all([
             getDocs(qDate),
-            getDocs(qData)
+            getDocs(qData),
           ]);
 
           // Combinar os resultados
           const docs = [...snapshotDate.docs, ...snapshotData.docs];
-          
+
           // Remover duplicatas (se um documento aparecer nas duas consultas)
-          const uniqueDocs = docs.filter((doc, index, self) => 
-            index === self.findIndex((d) => d.id === doc.id)
+          const uniqueDocs = docs.filter(
+            (doc, index, self) =>
+              index === self.findIndex((d) => d.id === doc.id)
           );
 
           // Processar os documentos
@@ -128,7 +133,9 @@ export default function Agendamentos() {
               formattedDate: formatarData(data.date || data.data),
               formattedPrice: formatarPreco(data.price || data.preco),
               statusText:
-                data.confirmado === true ? "Confirmado" : "Aguardando Pagamento",
+                data.confirmado === true
+                  ? "Confirmado"
+                  : "Aguardando Pagamento",
 
               // Campos do cliente
               clientName: data.clientName || data.cliente?.nome || "",
@@ -140,16 +147,49 @@ export default function Agendamentos() {
           });
 
           setAgendamentos(agendamentosArr);
-        } catch (error) {
-          console.error("[Agendamentos] Erro ao buscar:", error);
-          toast.error("Erro ao carregar agendamentos");
-        } finally {
-          setLoading(false);
-        }
-      };
+        } else {
+          // Caso para quando filtroData está vazio (buscar todos)
+          const q = query(agendamentosCollection);
+          const querySnapshot = await getDocs(q);
 
-      fetchAgendamentos();
-    }, [filtroData]);
+          const agendamentosArr = querySnapshot.docs.map((doc) => {
+            const data = doc.data();
+
+            // O mesmo processamento de dados
+            const statusFromConfirmado =
+              data.confirmado === true ? "confirmado" : "aguardando pagamento";
+
+            return {
+              id: doc.id,
+              date: data.date || data.data,
+              time: data.time || data.horario,
+              service: data.service || data.servico,
+              price: data.price || data.preco,
+              status: data.status || statusFromConfirmado,
+              formattedDate: formatarData(data.date || data.data),
+              formattedPrice: formatarPreco(data.price || data.preco),
+              statusText:
+                data.confirmado === true
+                  ? "Confirmado"
+                  : "Aguardando Pagamento",
+              clientName: data.clientName || data.cliente?.nome || "",
+              clientPhone: data.clientPhone || data.cliente?.telefone || "",
+              confirmado: data.confirmado === true,
+            };
+          });
+
+          setAgendamentos(agendamentosArr);
+        }
+      } catch (error) {
+        console.error("[Agendamentos] Erro ao buscar:", error);
+        toast.error("Erro ao carregar agendamentos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAgendamentos();
+  }, [filtroData]);
 
   // Filtrar agendamentos baseado nos critérios selecionados
   const agendamentosFiltrados = agendamentos.filter((agendamento) => {
