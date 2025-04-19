@@ -77,71 +77,79 @@ export default function Agendamentos() {
     const fetchAgendamentos = async () => {
       setLoading(true);
       try {
-        console.log(
-          `[Agendamentos] Iniciando busca para data: ${
-            filtroData || "todas as datas"
-          }`
-        );
+        console.log(`[Agendamentos] Iniciando busca para data: ${filtroData || "todas as datas"}`);
 
-        // Cria a consulta base - Simplificando para buscar tudo, sem filtrar por status
         let q;
+        const agendamentosCollection = collection(db, "agendamentos");
 
         if (filtroData) {
-          q = query(
-            collection(db, "agendamentos"),
+          // Não podemos fazer OR na mesma consulta no Firestore, então fazemos duas consultas
+          const qDate = query(
+            agendamentosCollection,
             where("date", "==", filtroData)
-            // Removemos o filtro de status aqui
           );
-        } else {
-          q = query(
-            collection(db, "agendamentos")
-            // Removemos o filtro de status aqui também
+          
+          const qData = query(
+            agendamentosCollection,
+            where("data", "==", filtroData)
           );
+
+          // Executar ambas as consultas
+          const [snapshotDate, snapshotData] = await Promise.all([
+            getDocs(qDate),
+            getDocs(qData)
+          ]);
+
+          // Combinar os resultados
+          const docs = [...snapshotDate.docs, ...snapshotData.docs];
+          
+          // Remover duplicatas (se um documento aparecer nas duas consultas)
+          const uniqueDocs = docs.filter((doc, index, self) => 
+            index === self.findIndex((d) => d.id === doc.id)
+          );
+
+          // Processar os documentos
+          const agendamentosArr = uniqueDocs.map((doc) => {
+            const data = doc.data();
+
+            // Determinamos o status baseado no campo 'confirmado'
+            const statusFromConfirmado =
+              data.confirmado === true ? "confirmado" : "aguardando pagamento";
+
+            return {
+              id: doc.id,
+              date: data.date || data.data,
+              time: data.time || data.horario,
+              service: data.service || data.servico,
+              price: data.price || data.preco,
+              status: data.status || statusFromConfirmado, // Usa 'confirmado' como fallback
+
+              // Campos formatados
+              formattedDate: formatarData(data.date || data.data),
+              formattedPrice: formatarPreco(data.price || data.preco),
+              statusText:
+                data.confirmado === true ? "Confirmado" : "Aguardando Pagamento",
+
+              // Campos do cliente
+              clientName: data.clientName || data.cliente?.nome || "",
+              clientPhone: data.clientPhone || data.cliente?.telefone || "",
+
+              // Novo campo booleano
+              confirmado: data.confirmado === true,
+            };
+          });
+
+          setAgendamentos(agendamentosArr);
+        } catch (error) {
+          console.error("[Agendamentos] Erro ao buscar:", error);
+          toast.error("Erro ao carregar agendamentos");
+        } finally {
+          setLoading(false);
         }
+      };
 
-        const querySnapshot = await getDocs(q);
-
-        const agendamentosArr = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
-
-          // Determinamos o status baseado no campo 'confirmado'
-          const statusFromConfirmado =
-            data.confirmado === true ? "confirmado" : "aguardando pagamento";
-
-          return {
-            id: doc.id,
-            date: data.date || data.data,
-            time: data.time || data.horario,
-            service: data.service || data.servico,
-            price: data.price || data.preco,
-            status: data.status || statusFromConfirmado, // Usa 'confirmado' como fallback
-
-            // Campos formatados
-            formattedDate: formatarData(data.date || data.data),
-            formattedPrice: formatarPreco(data.price || data.preco),
-            statusText:
-              data.confirmado === true ? "Confirmado" : "Aguardando Pagamento",
-
-            // Campos do cliente
-            clientName: data.clientName || data.cliente?.nome || "",
-            clientPhone: data.clientPhone || data.cliente?.telefone || "",
-
-            // Novo campo booleano
-            confirmado: data.confirmado === true,
-          };
-        });
-
-        setAgendamentos(agendamentosArr);
-      } catch (error) {
-        console.error("[Agendamentos] Erro ao buscar:", error);
-        toast.error("Erro ao carregar agendamentos");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAgendamentos();
-  }, [filtroData]);
+      fetchAgendamentos();
+    }, [filtroData]);
 
   // Filtrar agendamentos baseado nos critérios selecionados
   const agendamentosFiltrados = agendamentos.filter((agendamento) => {
@@ -170,10 +178,12 @@ export default function Agendamentos() {
     }
 
     // Filtro por data
-    if (filtroData && agendamento.date !== filtroData) {
-      // Verifique se estamos comparando no mesmo formato
-      // Ambos devem estar no formato YYYY-MM-DD para comparação
-      return false;
+    if (filtroData) {
+      const dataFormatada = agendamento.date;
+      // Tentar encontrar correspondência em qualquer formato
+      if (dataFormatada !== filtroData) {
+        return false;
+      }
     }
 
     return true;
@@ -235,31 +245,22 @@ export default function Agendamentos() {
     }
   };
 
-  // Limpar filtros
-  const limparFiltros = () => {
-    setFiltroStatus("todos");
-    setFiltroTexto("");
-    // Manter a data selecionada ou limpar também?
-    // setFiltroData(new Date().toISOString().split("T")[0]); // Resetar para hoje
-  };
-
-  // Buscar todos os agendamentos (remove o filtro de data)
-  const buscarTodosAgendamentos = () => {
-    setFiltroData(""); // Limpa o filtro de data
-    fetchAgendamentos(); // Carrega todos
-  };
-
-  // Encontrar o código que manipula o filtro de data
+  // Adicionar as funções que estão faltando
   const handleFiltroDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const novaData = e.target.value;
+    console.log(`Nova data selecionada: ${novaData}`);
     setFiltroData(novaData);
+    // O useEffect irá buscar os agendamentos automaticamente quando filtroData mudar
+  };
 
-    // Chame a função fetchAgendamentos com a nova data
-    if (novaData) {
-      fetchAgendamentos(novaData);
-    } else {
-      fetchAgendamentos(); // Sem data = todos os agendamentos
-    }
+  const limparFiltros = () => {
+    setFiltroData("");
+    setFiltroStatus("todos");
+    setFiltroTexto("");
+  };
+
+  const buscarTodosAgendamentos = () => {
+    setFiltroData(""); // Limpar filtro de data para mostrar todos
   };
 
   // Adicionar log antes do return
