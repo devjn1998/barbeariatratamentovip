@@ -236,17 +236,15 @@ export default function PaginaAgendamento() {
     }
 
     try {
-      const dadosAgendamento: DadosAgendamento = {
-        data: dataSelecionada,
-        horario: horarioSelecionado,
-        servico: servicoSelecionado,
-        preco: precoDoServico,
-        cliente: {
-          nome: nome,
-          telefone: telefone,
+      const dadosAgendamento = {
+        date: dataSelecionada,
+        time: horarioSelecionado,
+        service: servicoSelecionado,
+        price: precoDoServico,
+        client: {
+          name: nome,
+          phone: telefone,
         },
-        status: "aguardando pagamento",
-        metodoPagamento: "dinheiro",
       };
 
       const response = await fetch(

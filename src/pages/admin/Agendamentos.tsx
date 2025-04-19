@@ -12,8 +12,12 @@ import {
 } from "../../types/appointment";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../config/firebase";
+import {
+  formatarData,
+  formatarPreco,
+  traduzirStatus,
+} from "../../utils/formatters";
 
-// Interface para dados do agendamento
 interface Agendamento {
   id: string;
   data: string;
@@ -45,7 +49,7 @@ export default function Agendamentos() {
   } | null>(null);
 
   // Função para carregar dados de agendamentos
-  const carregarDados = async (data?: string) => {
+  const fetchAgendamentos = async (data?: string) => {
     try {
       setLoading(true);
       let dadosAgendamentos: NormalizedAppointment[];
@@ -78,75 +82,90 @@ export default function Agendamentos() {
   };
 
   // Carregar dados iniciais ou quando filtroData mudar
-  useEffect(
-    () => {
-      const fetchAgendamentos = async () => {
-        setLoading(true);
-        try {
-          console.log("[Agendamentos] Iniciando busca...");
+  useEffect(() => {
+    const fetchAgendamentos = async () => {
+      setLoading(true);
+      try {
+        console.log(
+          `[Agendamentos] Iniciando busca para data: ${
+            filtroData || "todas as datas"
+          }`
+        );
 
-          // MODIFICAÇÃO 1: Incluir status "aguardando pagamento" na consulta
-          const q = query(
+        // Cria a consulta base - Simplificando para buscar tudo, sem filtrar por status
+        let q;
+
+        if (filtroData) {
+          q = query(
             collection(db, "agendamentos"),
-            where("status", "in", ["confirmado", "aguardando pagamento"])
-            // Outras condições aqui...
+            where("date", "==", filtroData)
+            // Removemos o filtro de status aqui
           );
-
-          const querySnapshot = await getDocs(q);
-          console.log(
-            `[Agendamentos] Encontrados ${querySnapshot.size} documentos`
+        } else {
+          q = query(
+            collection(db, "agendamentos")
+            // Removemos o filtro de status aqui também
           );
-
-          const agendamentosArr = querySnapshot.docs.map((doc) => {
-            const data = doc.data();
-            console.log(`[Agendamentos Debug] Documento raw:`, data); // Log para debug
-
-            // MODIFICAÇÃO 2: Lógica para lidar com ambos os formatos de dados
-            return {
-              id: doc.id,
-              // Campos principais - verifica ambos os formatos possíveis
-              date: data.date || data.data,
-              time: data.time || data.horario,
-              service: data.service || data.servico,
-              price: data.price || data.preco,
-              status: data.status,
-
-              // Campos formatados
-              formattedDate: formatarData(data.date || data.data),
-              formattedPrice: formatarPreco(data.price || data.preco),
-              statusText: traduzirStatus(data.status),
-
-              // Campos do cliente - verifica ambos os formatos possíveis
-              clientName: data.clientName || data.cliente?.nome || "",
-              clientPhone: data.clientPhone || data.cliente?.telefone || "",
-            };
-          });
-
-          console.log(
-            "[Agendamentos Data Check] Dados recebidos ANTES de setAgendamentos:",
-            agendamentosArr
-          );
-          setAgendamentos(agendamentosArr);
-        } catch (error) {
-          console.error("[Agendamentos] Erro ao buscar:", error);
-          toast.error("Erro ao carregar agendamentos");
-        } finally {
-          setLoading(false);
         }
-      };
 
-      fetchAgendamentos();
-    },
-    [
-      /* dependências aqui */
-    ]
-  );
+        const querySnapshot = await getDocs(q);
+
+        const agendamentosArr = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+
+          // Determinamos o status baseado no campo 'confirmado'
+          const statusFromConfirmado =
+            data.confirmado === true ? "confirmado" : "aguardando pagamento";
+
+          return {
+            id: doc.id,
+            date: data.date || data.data,
+            time: data.time || data.horario,
+            service: data.service || data.servico,
+            price: data.price || data.preco,
+            status: data.status || statusFromConfirmado, // Usa 'confirmado' como fallback
+
+            // Campos formatados
+            formattedDate: formatarData(data.date || data.data),
+            formattedPrice: formatarPreco(data.price || data.preco),
+            statusText:
+              data.confirmado === true ? "Confirmado" : "Aguardando Pagamento",
+
+            // Campos do cliente
+            clientName: data.clientName || data.cliente?.nome || "",
+            clientPhone: data.clientPhone || data.cliente?.telefone || "",
+
+            // Novo campo booleano
+            confirmado: data.confirmado === true,
+          };
+        });
+
+        setAgendamentos(agendamentosArr);
+      } catch (error) {
+        console.error("[Agendamentos] Erro ao buscar:", error);
+        toast.error("Erro ao carregar agendamentos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAgendamentos();
+  }, [filtroData]);
 
   // Filtrar agendamentos baseado nos critérios selecionados
   const agendamentosFiltrados = agendamentos.filter((agendamento) => {
-    // Filtro por status
-    if (filtroStatus !== "todos" && agendamento.status !== filtroStatus) {
-      return false;
+    // Filtro por status (adaptado para usar confirmado)
+    if (filtroStatus !== "todos") {
+      const statusEsperado = filtroStatus === "confirmado";
+      // Verificar se o status corresponde, com fallback para o campo status tradicional
+      const isConfirmado =
+        agendamento.confirmado !== undefined
+          ? agendamento.confirmado
+          : agendamento.status === "confirmado";
+
+      if (isConfirmado !== statusEsperado) {
+        return false;
+      }
     }
 
     // Filtro por texto (nome, telefone ou serviço)
@@ -191,40 +210,12 @@ export default function Agendamentos() {
     try {
       await deleteAppointment(confirmExclusao.id);
       toast.success("Agendamento excluído com sucesso!");
-      carregarDados(filtroData);
+      fetchAgendamentos();
     } catch (error) {
       console.error("Erro ao excluir agendamento:", error);
       toast.error("Erro ao excluir agendamento");
     } finally {
       setConfirmExclusao(null);
-    }
-  };
-
-  // Função para formatar data
-  const formatarData = (dataString: string) => {
-    try {
-      const [ano, mes, dia] = dataString.split("-");
-      return `${dia}/${mes}/${ano}`;
-    } catch (e) {
-      return dataString;
-    }
-  };
-
-  // Função para formatar preço
-  const formatarPreco = (valor: number | undefined | null) => {
-    try {
-      if (valor === undefined || valor === null || isNaN(Number(valor))) {
-        return "R$ 0,00";
-      }
-      return Number(valor).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-    } catch (error) {
-      console.error("Erro ao formatar preço:", valor, error);
-      return "R$ 0,00";
     }
   };
 
@@ -257,33 +248,13 @@ export default function Agendamentos() {
   // Buscar todos os agendamentos (remove o filtro de data)
   const buscarTodosAgendamentos = () => {
     setFiltroData(""); // Limpa o filtro de data
-    carregarDados(); // Carrega todos
+    fetchAgendamentos(); // Carrega todos
   };
 
   // Adicionar log antes do return
   console.log(
     `[Agendamentos Render] Loading: ${loading}, Agendamentos Count: ${agendamentos.length}`
   );
-
-  // Adicione esta função antes do return do componente
-  const traduzirStatus = (status: string): string => {
-    switch (status?.toLowerCase()) {
-      case "agendado":
-        return "Agendado";
-      case "aguardando pagamento":
-        return "Aguardando Pagamento";
-      case "confirmado":
-        return "Confirmado";
-      case "cancelado":
-        return "Cancelado";
-      case "pendente":
-        return "Pendente";
-      case "concluido":
-        return "Concluído";
-      default:
-        return status || "Desconhecido";
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -474,7 +445,7 @@ export default function Agendamentos() {
           onClose={handleCloseEditModal}
           onSave={() => {
             handleCloseEditModal();
-            carregarDados(filtroData || undefined);
+            fetchAgendamentos();
           }}
         />
       )}

@@ -35,6 +35,7 @@ export interface NormalizedAppointment {
   clientPhone: string;
   clientEmail?: string;
   paymentId?: string;
+  confirmado: boolean;
 
   // Metadados
   createdAt?: string;

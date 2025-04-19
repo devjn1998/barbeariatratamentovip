@@ -1460,85 +1460,50 @@ app.delete("/api/agendamentos/:id", async (req: Request, res: Response) => {
 
 // Modificar a rota de verificação de disponibilidade atual
 app.get("/api/disponibilidade", async (req: Request, res: Response) => {
-  const dataQuery = req.query.data as string; // Ex: '2024-03-15'
-  const routeStartTime = Date.now();
-  console.log(
-    `[Disponibilidade INÍCIO ${routeStartTime}] Recebida consulta para data: ${dataQuery}`
-  );
-
-  // Validação básica da data
-  if (!dataQuery || !/^\d{4}-\d{2}-\d{2}$/.test(dataQuery)) {
-    console.warn(
-      `[Disponibilidade ${routeStartTime}] Data inválida recebida: ${dataQuery}`
-    );
-    return res
-      .status(400)
-      .json({ message: "Formato de data inválido. Use YYYY-MM-DD." });
-  }
-
-  const unavailableTimes = new Set<string>();
-
   try {
-    // 1. Buscar agendamentos confirmados para a data
-    console.time(`[Disponibilidade ${routeStartTime}] Query Agendamentos`);
-    const agendamentosRef = collection(db, "agendamentos");
-    const agendamentosQuery = query(
-      agendamentosRef,
-      where("date", "==", dataQuery),
-      where("status", "==", "confirmado") // <<< Status confirmado
-    );
-    const agendamentosSnapshot = await getDocs(agendamentosQuery);
-    console.timeEnd(`[Disponibilidade ${routeStartTime}] Query Agendamentos`);
-    console.log(
-      `[Disponibilidade ${routeStartTime}] Agendamentos confirmados encontrados: ${agendamentosSnapshot.size}`
-    );
-    agendamentosSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.time) {
-        unavailableTimes.add(data.time);
-      } else {
-        console.warn(
-          `[Disponibilidade ${routeStartTime}] Agendamento confirmado ${doc.id} sem campo 'time'.`
-        );
-      }
-    });
+    const { data } = req.query;
 
-    // 2. Buscar bloqueios manuais para a data
-    console.time(`[Disponibilidade ${routeStartTime}] Query Bloqueios`);
-    const bloqueiosRef = collection(db, "bloqueios");
-    const bloqueiosQuery = query(bloqueiosRef, where("date", "==", dataQuery));
+    if (!data || typeof data !== "string") {
+      return res.status(400).json({
+        error: "Data não fornecida ou inválida",
+      });
+    }
+
+    // Usar uma única consulta com OR para buscar tanto por 'date' quanto por 'data'
+    const agendamentosConfirmados = query(
+      collection(db, "agendamentos"),
+      where("confirmado", "==", true),
+      where("date", "==", data) // Agora apenas usando 'date'
+    );
+
+    const agendamentosSnapshot = await getDocs(agendamentosConfirmados);
+    const horariosOcupados = agendamentosSnapshot.docs.map(
+      (doc) => doc.data().time || doc.data().horario
+    );
+
+    // Busca bloqueios manuais (já está correta)
+    const bloqueiosQuery = query(
+      collection(db, "bloqueios"),
+      where("date", "==", data)
+    );
+
     const bloqueiosSnapshot = await getDocs(bloqueiosQuery);
-    console.timeEnd(`[Disponibilidade ${routeStartTime}] Query Bloqueios`);
-    console.log(
-      `[Disponibilidade ${routeStartTime}] Bloqueios manuais encontrados: ${bloqueiosSnapshot.size}`
+    const horariosBloqueados = bloqueiosSnapshot.docs.map(
+      (doc) => doc.data().time
     );
-    bloqueiosSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.time) {
-        unavailableTimes.add(data.time);
-      } else {
-        console.warn(
-          `[Disponibilidade ${routeStartTime}] Bloqueio manual ${doc.id} sem campo 'time'.`
-        );
-      }
-    });
 
-    const result = Array.from(unavailableTimes);
-    console.log(
-      `[Disponibilidade FIM ${routeStartTime}] Horários indisponíveis para ${dataQuery}: ${result}. Tempo total: ${
-        Date.now() - routeStartTime
-      }ms`
-    );
-    // Retorna a lista combinada de horários ocupados
-    return res.status(200).json({ horariosOcupados: result });
-  } catch (error: any) {
-    console.error(
-      `[Disponibilidade ERRO ${routeStartTime}] Erro ao buscar disponibilidade para ${dataQuery}:`,
-      error
-    );
+    // Combina ambos sem duplicatas
+    const todosHorariosOcupados = [
+      ...new Set([...horariosOcupados, ...horariosBloqueados]),
+    ];
+
+    return res.json({
+      horariosOcupados: todosHorariosOcupados,
+    });
+  } catch (error) {
+    console.error("Erro ao verificar disponibilidade:", error);
     return res.status(500).json({
-      message: "Erro interno ao verificar disponibilidade.",
-      error: error.message,
+      error: "Erro ao verificar disponibilidade",
     });
   }
 });
@@ -1760,9 +1725,7 @@ app.post(
       // 1. Validar os dados recebidos do frontend
       const validacao = validarDadosAgendamento(dadosAgendamento);
 
-      // Verifica se a validação NÃO passou (valid === false)
       if (!validacao.valid) {
-        // Usa o array 'validacao.errors' para log e resposta
         console.warn(
           `[Criar Pendente ${routeStartTime}] Dados inválidos:`,
           validacao.errors
@@ -1772,10 +1735,11 @@ app.post(
           .json({ message: "Dados inválidos.", errors: validacao.errors });
       }
 
-      // 2. Preparar dados para salvar no Firestore
+      // 2. Preparar dados para salvar no Firestore com o novo campo booleano
       const dadosParaSalvar = {
         ...dadosAgendamento,
-        status: "aguardando pagamento",
+        status: "aguardando pagamento", // Mantido por compatibilidade
+        confirmado: false, // NOVO CAMPO: false = aguardando pagamento
         metodoPagamento: "dinheiro",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -1820,17 +1784,24 @@ app.put("/api/agendamentos/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const dadosAtualizados = req.body;
+
+    // Ajustar a conversão de 'status' para 'confirmado'
+    if (dadosAtualizados.status) {
+      // Convertemos o status para o campo 'confirmado' (só dois estados possíveis)
+      dadosAtualizados.confirmado = dadosAtualizados.status === "confirmado";
+    }
+
     console.log(`🔄 Atualizando agendamento ID: ${id}`, dadosAtualizados);
 
-    // Validar dados recebidos (opcional, mas recomendado)
-    // Você pode criar uma função `validarDadosAtualizacaoAgendamento` se necessário
+    // Validar dados
     if (!dadosAtualizados) {
       return res
         .status(400)
         .json({ error: "Dados de atualização não fornecidos" });
     }
-    // Validar status se ele foi enviado
-    const statusValidos = ["aguardando pagamento", "confirmado", "cancelado"];
+
+    // Validar status se ele foi enviado (simplificado - apenas 2 valores válidos)
+    const statusValidos = ["aguardando pagamento", "confirmado"];
     if (
       dadosAtualizados.status &&
       !statusValidos.includes(dadosAtualizados.status)
@@ -1838,13 +1809,6 @@ app.put("/api/agendamentos/:id", async (req: Request, res: Response) => {
       return res
         .status(400)
         .json({ error: `Status inválido: ${dadosAtualizados.status}` });
-    }
-    // Validar data/hora se foram enviados
-    if (dadosAtualizados.data && !isValidDate(dadosAtualizados.data)) {
-      return res.status(400).json({ error: "Formato de data inválido" });
-    }
-    if (dadosAtualizados.horario && !isValidTime(dadosAtualizados.horario)) {
-      return res.status(400).json({ error: "Formato de horário inválido" });
     }
 
     // Referência ao documento no Firestore
@@ -1864,7 +1828,7 @@ app.put("/api/agendamentos/:id", async (req: Request, res: Response) => {
     };
 
     // Atualizar o documento
-    await setDoc(agendamentoRef, dadosParaSalvar, { merge: true }); // Usar merge: true para não sobrescrever campos não enviados
+    await setDoc(agendamentoRef, dadosParaSalvar, { merge: true });
 
     console.log(`✅ Agendamento ${id} atualizado com sucesso`);
 
