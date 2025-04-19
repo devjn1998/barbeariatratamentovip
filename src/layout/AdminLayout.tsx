@@ -3,6 +3,14 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ServerStatus from "../components/ServerStatus";
 import { useAuth } from "../contexts/AuthContext";
 
+// IMPORTAR SVGs como Componentes React
+// Certifique-se que os caminhos estão corretos para onde você salvou os SVGs
+import { ReactComponent as GridIcon } from "../assets/img/icons/grid.svg";
+import { ReactComponent as CalendarIcon } from "../assets/img/icons/calendar.svg";
+import { ReactComponent as ClockIcon } from "../assets/img/icons/clock.svg";
+import { ReactComponent as TrashIcon } from "../assets/img/icons/trash-2.svg";
+import { ReactComponent as LogOutIcon } from "../assets/img/icons/log-out.svg";
+
 interface AdminLayoutProps {
   children: ReactNode;
 }
@@ -14,25 +22,19 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Verifica qual item do menu está ativo
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(path + "/");
 
-  // Efeito para rastrear scroll
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-
+    const handleScroll = () => setIsScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Efeito para fechar sidebar ao mudar de rota
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  // Função para fazer logout
   const handleLogout = async () => {
     try {
       await logout();
@@ -153,7 +155,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <ServerStatus />
 
         <div className="flex flex-col lg:flex-row gap-6 mt-6">
-          {/* Mobile overlay */}
           {sidebarOpen && (
             <div
               className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
@@ -161,7 +162,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             />
           )}
 
-          {/* Navegação lateral */}
           <aside
             className={`fixed lg:static top-20 bottom-0 w-64 bg-white rounded-r-lg lg:rounded-lg shadow-lg p-4 transition-all duration-300 transform z-20 ${
               sidebarOpen ? "left-0" : "-left-64 lg:left-0"
@@ -198,21 +198,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                         : "hover:bg-amber-100"
                     }`}
                   >
-                    <svg
-                      className={`w-5 h-5 mr-3 ${
+                    <GridIcon
+                      className={`w-5 h-5 mr-3 stroke-current ${
                         isActive("/admin") ? "text-white" : "text-amber-500"
                       }`}
+                      strokeWidth="2"
                       fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                      />
-                    </svg>
+                    />
                     Dashboard
                   </Link>
                 </li>
@@ -225,58 +217,39 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                         : "hover:bg-amber-100"
                     }`}
                   >
-                    <svg
-                      className={`w-5 h-5 mr-3 ${
+                    <CalendarIcon
+                      className={`w-5 h-5 mr-3 stroke-current ${
                         isActive("/admin/agendamentos")
                           ? "text-white"
                           : "text-amber-500"
                       }`}
+                      strokeWidth="2"
                       fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
+                    />
                     Agendamentos
                   </Link>
                 </li>
-                {/* Remover o item de menu Pagamentos */}
-                {/*
                 <li>
                   <Link
-                    to="/admin/pagamentos"
+                    to="/admin/bloqueios"
                     className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
-                      isActive("/admin/pagamentos")
+                      isActive("/admin/bloqueios")
                         ? "bg-amber-500 text-white shadow-md"
                         : "hover:bg-amber-100"
                     }`}
                   >
-                    <svg
-                      className={`w-5 h-5 mr-3 ${
-                        isActive("/admin/pagamentos")
+                    <ClockIcon
+                      className={`w-5 h-5 mr-3 stroke-current ${
+                        isActive("/admin/bloqueios")
                           ? "text-white"
                           : "text-amber-500"
                       }`}
+                      strokeWidth="2"
                       fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"
-                      />
-                    </svg>
-                    Pagamentos
+                    />
+                    Gerenciador de Horários
                   </Link>
                 </li>
-                */}
                 <li>
                   <Link
                     to="/admin/limpeza-dados"
@@ -286,53 +259,36 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                         : "hover:bg-amber-100"
                     }`}
                   >
-                    <svg
-                      className={`w-5 h-5 mr-3 ${
+                    <TrashIcon
+                      className={`w-5 h-5 mr-3 stroke-current ${
                         isActive("/admin/limpeza-dados")
                           ? "text-white"
                           : "text-amber-500"
                       }`}
+                      strokeWidth="2"
                       fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
+                    />
                     Limpeza de Dados
                   </Link>
                 </li>
               </ul>
 
-              <div className="absolute bottom-4 left-4 right-4">
+              <div className="absolute bottom-4 left-4 right-4 lg:hidden">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors mt-4 lg:hidden"
+                  className="w-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors mt-4"
                 >
-                  <svg
-                    className="w-5 h-5 mr-2"
+                  <LogOutIcon
+                    className="w-5 h-5 mr-2 stroke-current"
+                    strokeWidth="2"
                     fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
+                  />
                   Sair
                 </button>
               </div>
             </nav>
           </aside>
 
-          {/* Conteúdo principal */}
           <main className="flex-1 bg-white rounded-lg shadow-md p-6 min-h-[500px] transform transition-all duration-300">
             <div className="animate-fadeIn">{children}</div>
           </main>
