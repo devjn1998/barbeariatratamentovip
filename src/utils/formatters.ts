@@ -8,6 +8,9 @@ export const formatarData = (dataString: string) => {
   }
 };
 
+// Alias para compatibilidade com código existente
+export const formatDate = formatarData;
+
 // Função para formatar preço
 export const formatarPreco = (valor: number | undefined | null) => {
   try {
@@ -25,6 +28,9 @@ export const formatarPreco = (valor: number | undefined | null) => {
     return "R$ 0,00";
   }
 };
+
+// Alias para compatibilidade com código existente
+export const formatCurrency = formatarPreco;
 
 // Função para traduzir status
 export const traduzirStatus = (status: string): string => {
