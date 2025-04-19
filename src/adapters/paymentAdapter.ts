@@ -1,4 +1,5 @@
 import { NormalizedPayment, Payment } from "../types/payment";
+import { NormalizedAppointment } from "../types/appointment";
 
 /**
  * Traduz o status do pagamento para português
@@ -209,5 +210,32 @@ export function adaptMixedPaymentData(data: any): NormalizedPayment {
     qrCodeBase64: data.qr_code_base64 || data.qrCodeBase64,
     ticketUrl: data.ticket_url || data.ticketUrl,
     expiresAt: data.expires_at || data.expiresAt,
+  };
+}
+
+export function createAppointmentFromPayment(
+  payment: NormalizedPayment
+): NormalizedAppointment {
+  return {
+    id: "", // Será gerado pelo backend
+    date: payment.appointmentDate || "",
+    time: payment.appointmentTime || "",
+    service: payment.description || "",
+    price: payment.transactionAmount || 0,
+    status: payment.status === "approved" ? "confirmado" : "pendente",
+
+    formattedDate: formatDate(payment.appointmentDate || ""),
+    formattedPrice: formatCurrency(payment.transactionAmount || 0),
+    statusText: payment.status === "approved" ? "Confirmado" : "Pendente",
+
+    clientName: payment.clientName || "",
+    clientPhone: payment.clientPhone || "",
+    clientEmail: payment.clientEmail || "",
+
+    paymentId: payment.id,
+
+    confirmado: payment.status === "approved",
+
+    originalData: undefined,
   };
 }

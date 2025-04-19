@@ -4,7 +4,7 @@ import {
   AppointmentStatusText,
   NormalizedAppointment,
 } from "../types/appointment";
-import { formatCurrency, formatDate } from "./paymentAdapter";
+import { formatCurrency, formatDate } from "../utils/formatters";
 
 /**
  * Adapta os dados de agendamento para o formato normalizado
@@ -87,6 +87,11 @@ export function adaptMixedAppointmentData(data: any): NormalizedAppointment {
 
     // Dados de pagamento
     paymentId: data.pagamentoId || data.paymentId,
+
+    confirmado:
+      data.confirmado !== undefined
+        ? data.confirmado
+        : data.status === "confirmado",
   };
 
   return normalized;
@@ -163,6 +168,10 @@ export function createAppointmentFromPayment(
     clientPhone,
     clientEmail,
     paymentId: paymentData.id,
+    confirmado:
+      paymentData.confirmado !== undefined
+        ? paymentData.confirmado
+        : paymentData.status === "confirmado",
   };
 
   return normalized;

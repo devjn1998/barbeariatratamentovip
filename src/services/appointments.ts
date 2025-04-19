@@ -2,8 +2,13 @@ import {
   adaptMixedAppointmentData,
   createAppointmentFromPayment,
 } from "../adapters";
-import { NormalizedAppointment } from "../types/appointment";
+import { Appointment, NormalizedAppointment } from "../types/appointment";
 import { NormalizedPayment } from "../types/payment";
+import {
+  formatarData,
+  formatarPreco,
+  traduzirStatus,
+} from "../utils/formatters";
 import api from "./api";
 import { toast } from "react-toastify";
 
@@ -170,4 +175,40 @@ export async function getOccupiedTimes(date: string): Promise<string[]> {
     console.error("Erro ao obter horários ocupados:", error);
     return []; // Retorna array vazio em caso de erro
   }
+}
+
+// Corrigir a função de normalização para incluir o campo 'confirmado'
+export function normalizeAppointment(
+  appointment: Appointment
+): NormalizedAppointment {
+  return {
+    id: appointment.id,
+    date: appointment.data,
+    time: appointment.horario,
+    service: appointment.servico,
+    price: appointment.preco,
+    status: appointment.status,
+
+    formattedDate: formatarData(appointment.data),
+    formattedPrice: formatarPreco(appointment.preco),
+    statusText: traduzirStatus(appointment.status),
+
+    clientName: appointment.cliente.nome,
+    clientPhone: appointment.cliente.telefone,
+    clientEmail: appointment.cliente.email,
+    paymentId: appointment.pagamentoId,
+
+    // Usar a propriedade confirmado existente ou inferir do status
+    confirmado:
+      appointment.confirmado !== undefined
+        ? appointment.confirmado
+        : appointment.status === "confirmado",
+
+    // Metadados
+    createdAt: appointment.createdAt,
+    updatedAt: appointment.updatedAt,
+
+    // Dados originais
+    originalData: appointment,
+  };
 }

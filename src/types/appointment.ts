@@ -8,6 +8,7 @@ export interface Appointment {
   servico: string;
   preco: number;
   status: "agendado" | "concluido" | "cancelado" | string;
+  confirmado?: boolean;
   cliente: {
     nome: string;
     telefone: string;
@@ -35,7 +36,7 @@ export interface NormalizedAppointment {
   clientPhone: string;
   clientEmail?: string;
   paymentId?: string;
-  confirmado: boolean;
+  confirmado?: boolean;
 
   // Metadados
   createdAt?: string;
