@@ -1433,52 +1433,92 @@ app.delete("/api/agendamentos/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Modificar a rota de verificação de disponibilidade atual
+// Rota para verificar disponibilidade (GET /api/disponibilidade)
 app.get("/api/disponibilidade", async (req: Request, res: Response) => {
+  const { data, horario } = req.query;
+
+  if (!data || typeof data !== "string" || !isValidDate(data)) {
+    return res.status(400).json({ message: "Data inválida ou não fornecida." });
+  }
+
   try {
-    const { data } = req.query;
+    console.log(`[Disponibilidade] Verificando para data: ${data}`);
 
-    if (!data || typeof data !== "string") {
-      return res.status(400).json({
-        error: "Data não fornecida ou inválida",
-      });
-    }
-
-    // Usar uma única consulta com OR para buscar tanto por 'date' quanto por 'data'
-    const agendamentosConfirmados = query(
-      collection(db, "agendamentos"),
-      where("confirmado", "==", true),
-      where("date", "==", data) // Agora apenas usando 'date'
-    );
-
-    const agendamentosSnapshot = await getDocs(agendamentosConfirmados);
-    const horariosOcupados = agendamentosSnapshot.docs.map(
-      (doc) => doc.data().time || doc.data().horario
-    );
-
-    // Busca bloqueios manuais (já está correta)
+    // 1. Buscar bloqueios manuais para a data
     const bloqueiosQuery = query(
       collection(db, "bloqueios"),
-      where("date", "==", data)
+      where("date", "==", data) // Assumindo que bloqueios usam 'date'
     );
 
-    const bloqueiosSnapshot = await getDocs(bloqueiosQuery);
-    const horariosBloqueados = bloqueiosSnapshot.docs.map(
-      (doc) => doc.data().time
+    // 2. Buscar agendamentos CONFIRMADOS para a data (verificando 'confirmado' == true)
+    //    Consulta tanto 'date' quanto 'data' para compatibilidade
+    const agendamentosConfirmadosDateQuery = query(
+      collection(db, "agendamentos"),
+      where("date", "==", data),
+      where("confirmado", "==", true) // <<< FILTRO CHAVE
+    );
+    const agendamentosConfirmadosDataQuery = query(
+      collection(db, "agendamentos"),
+      where("data", "==", data), // Consulta campo legado 'data' também
+      where("confirmado", "==", true) // <<< FILTRO CHAVE
     );
 
-    // Combina ambos sem duplicatas
-    const todosHorariosOcupados = [
-      ...new Set([...horariosOcupados, ...horariosBloqueados]),
-    ];
+    // Executar todas as consultas em paralelo
+    const [
+      bloqueiosSnapshot,
+      agendamentosDateSnapshot,
+      agendamentosDataSnapshot,
+    ] = await Promise.all([
+      getDocs(bloqueiosQuery),
+      getDocs(agendamentosConfirmadosDateQuery),
+      getDocs(agendamentosConfirmadosDataQuery),
+    ]);
 
-    return res.json({
-      horariosOcupados: todosHorariosOcupados,
-    });
-  } catch (error) {
-    console.error("Erro ao verificar disponibilidade:", error);
+    // 3. Extrair e combinar horários indisponíveis
+    const horariosBloqueadosManualmente = bloqueiosSnapshot.docs.map(
+      (doc) => doc.data().time // Assumindo que bloqueios usam 'time'
+    );
+
+    const horariosAgendadosConfirmados = [
+      ...agendamentosDateSnapshot.docs,
+      ...agendamentosDataSnapshot.docs,
+    ]
+      // Remover duplicatas caso um agendamento tenha 'date' e 'data'
+      .filter(
+        (doc, index, self) => index === self.findIndex((d) => d.id === doc.id)
+      )
+      .map((doc) => doc.data().time || doc.data().horario); // Pega 'time' ou 'horario'
+
+    // Usar um Set para garantir horários únicos
+    const horariosIndisponiveisSet = new Set([
+      ...horariosBloqueadosManualmente,
+      ...horariosAgendadosConfirmados,
+    ]);
+    const horariosIndisponiveis = Array.from(horariosIndisponiveisSet);
+
+    console.log(
+      `[Disponibilidade] Horários indisponíveis para ${data}:`,
+      horariosIndisponiveis
+    );
+
+    // Se um horário específico foi solicitado, verificar se ele está na lista
+    if (horario && typeof horario === "string") {
+      if (!isValidTime(horario)) {
+        return res
+          .status(400)
+          .json({ message: "Formato de horário inválido." });
+      }
+      const disponivel = !horariosIndisponiveis.includes(horario);
+      return res.json({ disponivel });
+    }
+
+    // Se nenhum horário específico foi solicitado, retornar a lista completa
+    return res.json({ horariosOcupados: horariosIndisponiveis });
+  } catch (error: any) {
+    console.error("[Disponibilidade] Erro ao buscar disponibilidade:", error);
     return res.status(500).json({
-      error: "Erro ao verificar disponibilidade",
+      message: "Erro ao verificar disponibilidade.",
+      error: error.message,
     });
   }
 });

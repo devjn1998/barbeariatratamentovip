@@ -257,7 +257,7 @@ export default function PaginaAgendamento() {
 
       // Usar axios para a chamada API (assumindo que 'api' é sua instância do axios)
       const response = await api.post(
-        "/api/admin/criar-pendente",
+        "/api/agendamentos/criar-pendente",
         dadosAgendamento
       );
       console.log("Resposta da API:", response.data);
@@ -315,7 +315,7 @@ export default function PaginaAgendamento() {
 
       console.log("Enviando dados para criação:", dadosAgendamento);
       const response = await api.post(
-        "/api/admin/criar-pendente",
+        "/api/agendamentos/criar-pendente",
         dadosAgendamento
       );
 
@@ -334,13 +334,17 @@ export default function PaginaAgendamento() {
 
         navegar(`/confirm?${params.toString()}`);
       } else {
-        throw new Error("Falha ao criar agendamento pendente.");
+        throw new Error(
+          "Falha ao criar agendamento pendente. Resposta inesperada da API."
+        );
       }
     } catch (error) {
       console.error("Erro ao criar agendamento pendente via API:", error);
-      toast.error(
-        "Não foi possível criar seu agendamento. Por favor, tente novamente."
-      );
+      const errorMsg =
+        error instanceof Error
+          ? error.message
+          : "Ocorreu um erro desconhecido.";
+      toast.error(`Não foi possível criar seu agendamento: ${errorMsg}`);
     } finally {
       setProcessingPayment(false);
     }
