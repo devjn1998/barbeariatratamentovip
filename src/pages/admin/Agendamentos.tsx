@@ -269,6 +269,22 @@ export default function Agendamentos() {
 
   // Função para obter classe CSS baseada no status
   const getStatusClass = (status: string) => {
+    // Usar o campo 'confirmado' como principal indicador
+    // Assumindo que 'status' pode ainda ter 'aguardando pagamento'
+    const isConfirmed = agendamentos.find(
+      (a) => a.status === status
+    )?.confirmado; // Encontra o agendamento para pegar o 'confirmado'
+
+    if (isConfirmed === true) {
+      return "bg-green-100 text-green-800"; // Verde para confirmado
+    } else if (status === "aguardando pagamento") {
+      return "bg-orange-100 text-orange-800"; // Laranja para aguardando pagamento
+    } else {
+      // Se não for confirmado e não for 'aguardando pagamento', pode ser pendente/agendado inicial
+      return "bg-yellow-100 text-yellow-800"; // Amarelo para pendente/agendado
+    }
+
+    /* REMOVENDO A LÓGICA ANTIGA BASEADA EM STRINGS DE STATUS
     switch (status?.toLowerCase()) {
       case AppointmentStatus.SCHEDULED: // 'agendado'
       case AppointmentStatus.PENDING: // 'pendente' (novo status)
@@ -278,11 +294,12 @@ export default function Agendamentos() {
       case AppointmentStatus.COMPLETED: // 'concluido' ou 'confirmado'
       case "confirmado": // Adicionar 'confirmado' explicitamente
         return "bg-green-100 text-green-800"; // Verde para concluído/confirmado
-      case AppointmentStatus.CANCELED: // 'cancelado'
-        return "bg-red-100 text-red-800";
+      // case AppointmentStatus.CANCELED: // 'cancelado' <-- REMOVIDO
+      //   return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800"; // Cinza para outros/desconhecido
     }
+    */
   };
 
   // Adicionar as funções que estão faltando
@@ -331,11 +348,15 @@ export default function Agendamentos() {
       {/* Filtros */}
       <div className="bg-white p-4 rounded-lg shadow-md grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Data
+          <label
+            htmlFor="filtro-data"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Filtrar por Data
           </label>
           <input
             type="date"
+            id="filtro-data"
             className="form-input rounded-md shadow-sm mt-1 block w-full"
             value={filtroData}
             onChange={handleFiltroDataChange}
@@ -343,31 +364,38 @@ export default function Agendamentos() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Status
+          <label
+            htmlFor="filtro-status"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Filtrar por Status
           </label>
           <select
+            id="filtro-status"
+            className="form-select rounded-md shadow-sm mt-1 block w-full"
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
           >
             <option value="todos">Todos</option>
-            <option value="aguardando pagamento">Aguardando Pagamento</option>
             <option value="confirmado">Confirmado</option>
-            <option value={AppointmentStatus.CANCELED}>Cancelado</option>
+            <option value="aguardando pagamento">Aguardando Pagamento</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Buscar
+          <label
+            htmlFor="filtro-texto"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Buscar por Cliente, Telefone ou Serviço
           </label>
           <input
             type="text"
+            id="filtro-texto"
+            className="form-input rounded-md shadow-sm mt-1 block w-full"
+            placeholder="Digite para buscar..."
             value={filtroTexto}
             onChange={(e) => setFiltroTexto(e.target.value)}
-            placeholder="Nome, telefone ou serviço"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
           />
         </div>
       </div>
