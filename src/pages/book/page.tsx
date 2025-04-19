@@ -292,6 +292,112 @@ export default function PaginaAgendamento() {
     }
   };
 
+  // Modificando apenas a parte da função que cria o agendamento pendente
+  const handleAgendamentoPendente = async () => {
+    if (!validarDadosAgendamento()) {
+      return;
+    }
+
+    setProcessingPayment(true);
+
+    try {
+      // Formatado com os nomes em português que o backend espera
+      const dadosAgendamento = {
+        data: dataSelecionada,
+        horario: horarioSelecionado,
+        servico: servicoSelecionado,
+        preco: precoDoServico,
+        cliente: {
+          nome: nome,
+          telefone: telefone,
+        },
+      };
+
+      console.log("Enviando dados para criação:", dadosAgendamento);
+      const response = await api.post(
+        "/api/admin/criar-pendente",
+        dadosAgendamento
+      );
+
+      if (response.data && response.data.id) {
+        console.log("Agendamento pendente criado via API:", response.data);
+        toast.success("Agendamento realizado! Pague no dia do serviço.");
+
+        const params = new URLSearchParams({
+          service: servicoSelecionado,
+          date: dataSelecionada,
+          time: horarioSelecionado,
+          name: nome,
+          status: "pending",
+          id: response.data.id,
+        });
+
+        navegar(`/confirm?${params.toString()}`);
+      } else {
+        throw new Error("Falha ao criar agendamento pendente.");
+      }
+    } catch (error) {
+      console.error("Erro ao criar agendamento pendente via API:", error);
+      toast.error(
+        "Não foi possível criar seu agendamento. Por favor, tente novamente."
+      );
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  // 1. Adicionar a função de validação que está faltando
+  const validarDadosAgendamento = () => {
+    // Validar campos obrigatórios
+    if (!dataSelecionada) {
+      toast.error("Por favor, selecione uma data para o agendamento");
+      return false;
+    }
+
+    if (!horarioSelecionado) {
+      toast.error("Por favor, selecione um horário para o agendamento");
+      return false;
+    }
+
+    if (!servicoSelecionado) {
+      toast.error("Por favor, selecione um serviço");
+      return false;
+    }
+
+    if (!nome || nome.trim() === "") {
+      toast.error("Por favor, informe seu nome");
+      return false;
+    }
+
+    if (!telefone || telefone.trim() === "") {
+      toast.error("Por favor, informe seu telefone para contato");
+      return false;
+    }
+
+    return true;
+  };
+
+  // 2. Definir a variável precoDoServico que está faltando
+  // Esta variável deve ser definida com base no serviço selecionado
+  // Por exemplo:
+
+  const getPrecoServico = (servico: string): number => {
+    // Mapeamento de serviços para preços
+    const precos: Record<string, number> = {
+      "Corte Disfarçado com Máquina": 30,
+      "Corte Disfarçado com Tesoura": 35,
+      "Combo Cabelo+Barba": 40,
+      "Combo Cabelo+Barba+Sobrancelha": 50,
+      "Combo Cabelo+Barba+Pintura+Sobrancelha": 65,
+      // Adicione outros serviços conforme necessário
+    };
+
+    return precos[servico] || 0; // Retorna o preço ou 0 se não encontrado
+  };
+
+  // Usar a função para definir o preço do serviço selecionado
+  const precoDoServico = getPrecoServico(servicoSelecionado);
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-4xl font-serif font-bold mb-8 text-center">
@@ -338,23 +444,6 @@ export default function PaginaAgendamento() {
                   placeholder="(XX) XXXXX-XXXX"
                   required
                   maxLength={15}
-                  disabled={processingPayment}
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:ring-amber-500 focus:border-amber-500"
-                  placeholder="Digite seu email"
                   disabled={processingPayment}
                 />
               </div>
