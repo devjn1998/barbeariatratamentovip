@@ -10,7 +10,14 @@ import {
   AppointmentStatus,
   NormalizedAppointment,
 } from "../../types/appointment";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  QuerySnapshot,
+  DocumentData,
+} from "firebase/firestore";
 import { db } from "../../config/firebase";
 import {
   formatarData,
@@ -98,11 +105,11 @@ export default function Agendamentos() {
             where("data", "==", filtroData)
           );
 
-          // Executar ambas as consultas
-          const [snapshotDate, snapshotData] = await Promise.all([
-            getDocs(qDate),
-            getDocs(qData),
-          ]);
+          // Executar ambas as consultas com TIPAGEM EXPLÍCITA
+          const [snapshotDate, snapshotData]: [
+            QuerySnapshot<DocumentData>, // Tipo para snapshotDate
+            QuerySnapshot<DocumentData> // Tipo para snapshotData
+          ] = await Promise.all([getDocs(qDate), getDocs(qData)]);
 
           // Combinar os resultados
           const docs = [...snapshotDate.docs, ...snapshotData.docs];
