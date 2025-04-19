@@ -23,6 +23,7 @@
     "morgan": "^1.10.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.2.0",
     "react-scripts": "5.0.1",
     "react-toastify": "^11.0.3",
@@ -57,7 +58,7 @@
   "devDependencies": {
     "@types/axios": "^0.14.4",
     "@types/firebase": "^2.4.32",
-    "@types/react": "^18.2.0",
+    "@types/react": "^18.3.20",
     "@types/react-dom": "^18.2.0",
     "@types/react-toastify": "^4.1.0",
     "autoprefixer": "^10.4.17",
