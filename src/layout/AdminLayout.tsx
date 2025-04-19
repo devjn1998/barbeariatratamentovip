@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import ServerStatus from "../components/ServerStatus";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -11,11 +11,7 @@ import { ReactComponent as ClockIcon } from "../assets/img/icons/clock.svg";
 import { ReactComponent as TrashIcon } from "../assets/img/icons/trash-2.svg";
 import { ReactComponent as LogOutIcon } from "../assets/img/icons/log-out.svg";
 
-interface AdminLayoutProps {
-  children: ReactNode;
-}
-
-export default function AdminLayout({ children }: AdminLayoutProps) {
+export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
@@ -290,7 +286,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </aside>
 
           <main className="flex-1 bg-white rounded-lg shadow-md p-6 min-h-[500px] transform transition-all duration-300">
-            <div className="animate-fadeIn">{children}</div>
+            <div className="animate-fadeIn">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes, Link } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Link, Outlet } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import BookingPage from "./pages/book/page";
@@ -86,9 +86,7 @@ function App() {
                 path="/admin"
                 element={
                   <ProtectedRoute>
-                    <AdminLayout>
-                      <AdminDashboard />
-                    </AdminLayout>
+                    <AdminLayout />
                   </ProtectedRoute>
                 }
               >
