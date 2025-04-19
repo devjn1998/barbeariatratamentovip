@@ -14,6 +14,8 @@ import {
   where,
   writeBatch,
   addDoc,
+  QuerySnapshot,
+  DocumentData,
 } from "firebase/firestore";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { adminDb, db } from "./config/firebase";
@@ -1463,11 +1465,15 @@ app.get("/api/disponibilidade", async (req: Request, res: Response) => {
       where("confirmado", "==", true) // <<< FILTRO CHAVE
     );
 
-    // Executar todas as consultas em paralelo
+    // Executar todas as consultas em paralelo com TIPAGEM EXPLÍCITA
     const [
       bloqueiosSnapshot,
       agendamentosDateSnapshot,
       agendamentosDataSnapshot,
+    ]: [
+      QuerySnapshot<DocumentData>, // Tipo para bloqueiosSnapshot
+      QuerySnapshot<DocumentData>, // Tipo para agendamentosDateSnapshot
+      QuerySnapshot<DocumentData> // Tipo para agendamentosDataSnapshot
     ] = await Promise.all([
       getDocs(bloqueiosQuery),
       getDocs(agendamentosConfirmadosDateQuery),

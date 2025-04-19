@@ -9,7 +9,7 @@ import {
   deleteDoc,
   doc,
   Timestamp,
-  QueryDocumentSnapshot,
+  QuerySnapshot,
   DocumentData,
 } from "firebase/firestore";
 import dayjs from "dayjs";
@@ -86,9 +86,13 @@ export default function AdminBloqueiosPage() {
         bloqueiosSnapshot,
         agendamentosDateSnapshot,
         agendamentosDataSnapshot,
+      ]: [
+        QuerySnapshot<DocumentData>,
+        QuerySnapshot<DocumentData>,
+        QuerySnapshot<DocumentData>
       ] = await Promise.all([
         getDocs(bloqueiosQuery),
-        getDocs(agendamentosDateSnapshot),
+        getDocs(agendamentosDateQuery),
         getDocs(agendamentosDataQuery),
       ]);
 
