@@ -1642,107 +1642,124 @@ app.post("/api/admin/reset-database", async (req: Request, res: Response) => {
   }
 });
 
-// Endpoint para verificar o status de um pagamento pelo ID
+// Rota para verificar o status de um pagamento existente
 app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
+  const { id } = req.params; // Extrai o ID da requisição
+
+  // Validação básica do ID
+  if (!id) {
+    console.warn("Tentativa de verificar status sem ID.");
+    return res.status(400).json({
+      success: false,
+      message: "ID do pagamento não fornecido",
+    });
+  }
+
+  console.log(`⏳ Verificando status do pagamento: ${id}`);
+
   try {
-    const { id } = req.params;
+    // 1. Consultar o status real no provedor de pagamento (Mercado Pago)
+    const paymentStatus = await mercadoPagoService.checkPaymentStatus(id);
+    console.log(
+      `✅ Status do pagamento ${id} obtido do MP:`,
+      paymentStatus.status
+    );
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "ID do pagamento não fornecido",
-      });
-    }
+    // 2. Processar APENAS se o pagamento estiver aprovado
+    if (paymentStatus.status === "approved") {
+      console.log(
+        `INFO: Pagamento ${id} aprovado. Verificando dados para agendamento final.`
+      );
+      const paymentDocRef = doc(db, "payments", id);
 
-    console.log(`⏳ Verificando status do pagamento: ${id}`);
+      // 3. Ler os dados temporários salvos originalmente pela rota POST
+      const paymentDataSnapshot = await getDoc(paymentDocRef);
 
-    try {
-      const paymentStatus = await mercadoPagoService.checkPaymentStatus(id);
-      console.log(`✅ Status do pagamento ${id} obtido:`, paymentStatus.status);
+      if (paymentDataSnapshot.exists()) {
+        const originalPaymentData = paymentDataSnapshot.data();
+        console.log(
+          `DEBUG: Dados originais lidos de payments/${id}`,
+          JSON.stringify(originalPaymentData).substring(0, 500) + "..."
+        ); // Log para depuração
 
-      if (paymentStatus.status === "approved") {
-        const paymentDocRef = doc(db, "payments", id);
-        const paymentData = await getDoc(paymentDocRef);
+        // 4. Validar a estrutura esperada (com 'cliente' e 'dados_agendamento_temp' no nível raiz)
+        if (
+          originalPaymentData.dados_agendamento_temp &&
+          originalPaymentData.cliente
+        ) {
+          console.log(
+            `INFO: Dados temporários validados para ${id}. Preparando para criar agendamento final.`
+          );
+          const agendamentosCollection = collection(db, "agendamentos");
 
-        if (paymentData.exists()) {
-          const data = paymentData.data();
-          if (data.dados_agendamento_temp && data.cliente) {
-            const agendamentosCollection = collection(db, "agendamentos");
+          try {
+            // 5. Criar o documento final na coleção 'agendamentos'
+            await addDoc(agendamentosCollection, {
+              data: originalPaymentData.dados_agendamento_temp.data,
+              horario: originalPaymentData.dados_agendamento_temp.horario,
+              servico: originalPaymentData.dados_agendamento_temp.servico,
+              clienteNome: originalPaymentData.cliente.nome,
+              clienteTelefone: originalPaymentData.cliente.telefone,
+              clienteEmail: originalPaymentData.cliente.email,
+              statusPagamento: "approved",
+              paymentId: id,
+              createdAt: serverTimestamp(),
+            });
             console.log(
-              "INFO: Preparando para adicionar documento na coleção 'agendamentos'"
+              `✅ Agendamento final criado com sucesso para pagamento ${id} na coleção 'agendamentos'`
             );
-            try {
-              await addDoc(agendamentosCollection, {
-                data: data.dados_agendamento_temp.data,
-                horario: data.dados_agendamento_temp.horario,
-                servico: data.dados_agendamento_temp.servico,
-                clienteNome: data.cliente.nome,
-                clienteTelefone: data.cliente.telefone,
-                clienteEmail: data.cliente.email,
-                statusPagamento: "approved",
-                paymentId: id,
-                createdAt: serverTimestamp(),
-              });
-              console.log(
-                `✅ Agendamento final criado para pagamento ${id} na coleção 'agendamentos'`
-              );
-            } catch (addDocError) {
-              console.error(
-                `❌ Erro ao salvar agendamento final para ${id} na coleção 'agendamentos':`,
-                addDocError
-              );
-            }
-          } else {
+          } catch (addDocError) {
             console.error(
-              `❌ Dados temporários incompletos no documento 'payments' para ID: ${id} (INESPERADO!)`
+              `❌ ERRO CRÍTICO ao salvar agendamento final para ${id} na coleção 'agendamentos':`,
+              addDocError
             );
-            console.log(
-              `🔍 Estrutura real (após leitura):`,
-              JSON.stringify(data)
-            );
+            // Considerar notificação ou mecanismo de retry aqui
           }
         } else {
+          // Este erro só deve ocorrer se a ROTA POST não salvou os dados corretamente
           console.error(
-            `❌ Documento 'payments' não encontrado para o ID: ${id}, apesar do pagamento estar aprovado.`
+            `❌ ERRO DE INTEGRIDADE: Dados ('cliente' ou 'dados_agendamento_temp') ausentes no documento 'payments/${id}' lido. Verifique a rota POST /api/pagamentos.`
+          );
+          console.log(
+            `🔍 Estrutura lida de payments/${id} que causou a falha:`,
+            JSON.stringify(originalPaymentData)
           );
         }
+      } else {
+        // Documento não encontrado no Firestore, apesar de aprovado no MP
+        console.error(
+          `❌ ERRO DE SINCRONIZAÇÃO: Documento 'payments/${id}' não encontrado no Firestore, mas pagamento está aprovado no MP.`
+        );
       }
+    }
 
-      // Retorna o status atual para o frontend
-      return res.status(200).json({
-        success: true,
-        status: paymentStatus.status,
-        approved: paymentStatus.status === "approved",
-        statusDetail: paymentStatus.statusDetail,
-        transactionAmount: paymentStatus.transaction_amount,
-        dateCreated: paymentStatus.date_created,
-        description: paymentStatus.description,
-        paymentMethodId: paymentStatus.payment_method_id,
-        id: paymentStatus.id,
-      });
-    } catch (statusError: any) {
-      console.error(
-        `❌ Erro ao verificar status do pagamento ${id}:`,
-        statusError
-      );
-      // Verificar se o erro é do Mercado Pago (ex: 404 - não encontrado)
-      if (statusError.response?.status === 404) {
-        return res.status(404).json({
-          success: false,
-          message: `Pagamento ${id} não encontrado no Mercado Pago.`,
-        });
-      }
-      // Outro erro genérico
-      return res.status(500).json({
+    // 6. Retornar o status atual para o frontend
+    return res.status(200).json({
+      success: true,
+      status: paymentStatus.status,
+      approved: paymentStatus.status === "approved",
+      statusDetail: paymentStatus.statusDetail,
+      transactionAmount: paymentStatus.transaction_amount,
+      dateCreated: paymentStatus.date_created,
+      description: paymentStatus.description,
+      paymentMethodId: paymentStatus.payment_method_id,
+      id: paymentStatus.id,
+    });
+  } catch (statusError: any) {
+    console.error(
+      `❌ Erro ao verificar status do pagamento ${id} ou processar agendamento:`,
+      statusError
+    );
+    if (statusError.response?.status === 404) {
+      return res.status(404).json({
         success: false,
-        message: "Erro interno ao verificar status do pagamento.",
+        message: `Pagamento ${id} não encontrado no Mercado Pago.`,
       });
     }
-  } catch (error) {
-    console.error("❌ Erro geral na rota /api/pagamentos/:id/status:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Erro interno no servidor." });
+    return res.status(500).json({
+      success: false,
+      message: "Erro interno ao verificar status do pagamento.",
+    });
   }
 });
 
