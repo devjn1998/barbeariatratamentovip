@@ -146,26 +146,46 @@ export default function PaymentPage() {
         );
       }
     } catch (error: any) {
-      console.error("Falha ao criar pagamento PIX:", error);
+      console.error("--- DETALHES DO ERRO NO CATCH ---");
+      console.error("Timestamp:", new Date().toISOString());
+      console.error("Objeto error completo:", error);
+      // Tentar logar propriedades específicas com segurança
+      try {
+        console.error("error.message:", error?.message);
+        console.error("error.response:", error?.response);
+        console.error("error.response?.status:", error?.response?.status);
+        console.error("error.response?.data:", error?.response?.data);
+        console.error("error.request:", error?.request);
+        console.error("error.config:", error?.config); // Configuração da requisição Axios
+        console.error("error.stack:", error?.stack); // Stack trace, se disponível
+      } catch (logError) {
+        console.error("Erro ao tentar logar propriedades do erro:", logError);
+      }
+      console.error("--- FIM DETALHES DO ERRO ---");
+
       let errorMessage =
         "Não foi possível gerar o QR Code PIX. Tente novamente.";
 
       if (error.response) {
+        // Erro vindo do backend (status 4xx ou 5xx)
         errorMessage =
-          error.response.data?.message ||
+          error.response.data?.message || // Tenta pegar a mensagem específica
           error.response.data?.error ||
-          errorMessage;
-        console.error("Detalhes do erro do backend:", error.response.data);
+          errorMessage; // Usa a padrão se não encontrar
+        // Não precisa logar de novo aqui, já fizemos acima
       } else if (error.request) {
+        // A requisição foi feita mas não houve resposta
         errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
       } else {
+        // Erro ao configurar a requisição ou outro erro JS
+        // Usar a mensagem do objeto Error, se existir
         errorMessage = error.message || errorMessage;
       }
 
-      setErrorMessage(errorMessage);
-      toast.error(errorMessage);
+      setErrorMessage(errorMessage); // Atualiza o estado de erro
+      toast.error(errorMessage); // Exibe a mensagem de erro para o usuário
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Garante que o loading seja desativado
     }
   }, [
     dataAgendamento,
