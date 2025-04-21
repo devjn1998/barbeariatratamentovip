@@ -1663,24 +1663,52 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
 
       if (paymentStatus.status === "approved") {
         // Buscar dados temporários do pagamento/agendamento
-        const paymentData = await getDoc(doc(db, "payments", id));
+        const paymentDocRef = doc(db, "payments", id); // Referência ao documento
+        const paymentData = await getDoc(paymentDocRef); // Busca o documento
 
-        // Adicionar o documento ao Firestore
-        const agendamentosCollection = collection(db, "agendamentos");
-        await addDoc(agendamentosCollection, {
-          data: paymentData.data().dados_agendamento_temp.data,
-          horario: paymentData.data().dados_agendamento_temp.horario,
-          servico: paymentData.data().dados_agendamento_temp.servico,
-          clienteNome: paymentData.data().cliente.nome,
-          clienteTelefone: paymentData.data().cliente.telefone,
-          clienteEmail: paymentData.data().cliente.email,
-          statusPagamento: "approved",
-          paymentId: id,
-          createdAt: serverTimestamp(),
-        });
-        console.log(`✅ Agendamento final criado para pagamento ${id}`);
+        // Verifica se o documento com os dados temporários existe
+        if (paymentData.exists()) {
+          const data = paymentData.data(); // Agora é seguro chamar .data()
+
+          // Verifica se os dados necessários existem (opcional, mas bom para robustez)
+          if (data.dados_agendamento_temp && data.cliente) {
+            // Adicionar o documento ao Firestore
+            const agendamentosCollection = collection(db, "agendamentos");
+            try {
+              await addDoc(agendamentosCollection, {
+                // Acessa os dados a partir da variável 'data'
+                data: data.dados_agendamento_temp.data,
+                horario: data.dados_agendamento_temp.horario,
+                servico: data.dados_agendamento_temp.servico,
+                clienteNome: data.cliente.nome,
+                clienteTelefone: data.cliente.telefone,
+                clienteEmail: data.cliente.email,
+                statusPagamento: "approved",
+                paymentId: id,
+                createdAt: serverTimestamp(),
+              });
+              console.log(`✅ Agendamento final criado para pagamento ${id}`);
+
+              // Opcional: Atualizar o status no documento 'payments' para evitar reprocessamento
+              // await updateDoc(paymentDocRef, { status_processamento: 'concluido' });
+
+            } catch (addDocError) {
+               console.error(`❌ Erro ao salvar agendamento final para ${id} no Firestore:`, addDocError);
+               // Considerar como lidar com este erro - talvez tentar novamente?
+            }
+          } else {
+             console.error(`❌ Dados temporários incompletos no documento 'payments' para ID: ${id}`);
+             // O pagamento foi aprovado, mas não encontramos os dados para agendar.
+          }
+        } else {
+          // Se o documento 'payments' não for encontrado
+          console.error(`❌ Documento 'payments' não encontrado para o ID: ${id}, apesar do pagamento estar aprovado.`);
+          // Isso não deveria acontecer normalmente se o fluxo de criação de pagamento estiver correto.
+        }
       }
 
+      // Retorna o status para o frontend independentemente de ter criado o agendamento aqui
+      // (o frontend só precisa saber o status do pagamento)
       return res.status(200).json({
         success: true,
         status: paymentStatus.status,
