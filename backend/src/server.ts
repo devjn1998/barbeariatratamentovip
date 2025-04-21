@@ -1661,6 +1661,26 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
 
       console.log(`✅ Status do pagamento ${id} obtido:`, paymentStatus.status);
 
+      if (paymentStatus.status === "approved") {
+        // Buscar dados temporários do pagamento/agendamento
+        const paymentData = await getDoc(doc(db, "payments", id));
+
+        // Adicionar o documento ao Firestore
+        const agendamentosCollection = collection(db, "agendamentos");
+        await addDoc(agendamentosCollection, {
+          data: paymentData.data().dados_agendamento_temp.data,
+          horario: paymentData.data().dados_agendamento_temp.horario,
+          servico: paymentData.data().dados_agendamento_temp.servico,
+          clienteNome: paymentData.data().cliente.nome,
+          clienteTelefone: paymentData.data().cliente.telefone,
+          clienteEmail: paymentData.data().cliente.email,
+          statusPagamento: "approved",
+          paymentId: id,
+          createdAt: serverTimestamp(),
+        });
+        console.log(`✅ Agendamento final criado para pagamento ${id}`);
+      }
+
       return res.status(200).json({
         success: true,
         status: paymentStatus.status,
