@@ -1697,7 +1697,7 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
               `❌ Dados temporários incompletos no documento 'payments' para ID: ${id} (INESPERADO!)`
             );
             console.log(
-              `🔍 Estrutura real dos dados em payments/${id}:`,
+              `🔍 Estrutura real (após leitura):`,
               JSON.stringify(data)
             );
           }
