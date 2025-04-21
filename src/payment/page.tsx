@@ -452,11 +452,17 @@ export default function PaymentPage() {
 
         {/* QR Code */}
         <div className="mb-6 bg-white p-4 inline-block shadow-lg rounded-lg">
-          <img
-            src={`data:image/png;base64,${pixData.qrCodeBase64}`}
-            alt="PIX QR Code"
-            className="w-64 h-64 mx-auto"
-          />
+          {pixData.qrCodeBase64 ? (
+            <img
+              src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+              alt="PIX QR Code"
+              className="w-64 h-64 mx-auto"
+            />
+          ) : (
+            <div className="w-64 h-64 mx-auto flex items-center justify-center bg-gray-200">
+              <p className="text-gray-500 text-sm">Carregando QR Code...</p>
+            </div>
+          )}
         </div>
 
         {/* Chave PIX Copia e Cola */}
