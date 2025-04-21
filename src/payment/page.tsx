@@ -127,24 +127,43 @@ export default function PaymentPage() {
         servico: servicoNome,
       });
 
-      if (response.data && response.data.success && response.data.pixData) {
-        setPixData(response.data.pixData);
+      if (
+        response.status === 201 &&
+        response.data?.point_of_interaction?.transaction_data
+      ) {
+        console.log("QR Code recebido:", response.data);
+        setPixData(response.data.point_of_interaction.transaction_data);
         setPaymentStatus("pending"); // Define o status inicial como pendente
         setIsPolling(true); // Inicia o polling após receber os dados do PIX
-        console.log("Dados do PIX recebidos:", response.data.pixData);
+        console.log(
+          "Dados do PIX recebidos:",
+          response.data.point_of_interaction.transaction_data
+        );
       } else {
+        console.error("Resposta inesperada do servidor:", response);
         throw new Error(
-          response.data?.message || "Falha ao obter dados do PIX."
+          response.data?.message || "Formato de resposta inválido ao gerar PIX."
         );
       }
     } catch (error: any) {
-      console.error("Erro ao criar pagamento PIX:", error);
-      const msg =
-        error.response?.data?.message ||
-        error.message ||
-        "Erro desconhecido ao iniciar pagamento.";
-      setErrorMessage(`Erro ao iniciar pagamento: ${msg}`);
-      toast.error(`Erro ao iniciar pagamento: ${msg}`);
+      console.error("Falha ao criar pagamento PIX:", error);
+      let errorMessage =
+        "Não foi possível gerar o QR Code PIX. Tente novamente.";
+
+      if (error.response) {
+        errorMessage =
+          error.response.data?.message ||
+          error.response.data?.error ||
+          errorMessage;
+        console.error("Detalhes do erro do backend:", error.response.data);
+      } else if (error.request) {
+        errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
+      } else {
+        errorMessage = error.message || errorMessage;
+      }
+
+      setErrorMessage(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
