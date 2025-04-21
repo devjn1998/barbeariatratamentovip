@@ -1657,13 +1657,9 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
     console.log(`⏳ Verificando status do pagamento: ${id}`);
 
     try {
-      // Busca o status no Mercado Pago
       const paymentStatus = await mercadoPagoService.checkPaymentStatus(id);
-
-      // Log do status obtido (importante manter)
       console.log(`✅ Status do pagamento ${id} obtido:`, paymentStatus.status);
 
-      // Lógica para criar o agendamento final se aprovado
       if (paymentStatus.status === "approved") {
         const paymentDocRef = doc(db, "payments", id);
         const paymentData = await getDoc(paymentDocRef);
