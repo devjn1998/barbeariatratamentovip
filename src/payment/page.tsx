@@ -127,6 +127,26 @@ export default function PaymentPage() {
         servico: servicoNome,
       });
 
+      // --- ADICIONAR ESTE LOG ---
+      console.log("--- INSPECIONANDO RESPONSE ANTES DO IF ---");
+      console.log("Response Status:", response?.status);
+      console.log("Response Data:", response?.data);
+      // Logar especificamente a parte que está falhando na condição
+      try {
+        console.log(
+          "Response Data PIX Interaction:",
+          response?.data?.point_of_interaction
+        );
+        console.log(
+          "Response Data PIX Transaction Data:",
+          response?.data?.point_of_interaction?.transaction_data
+        );
+      } catch (e) {
+        console.error("Erro ao logar dados aninhados do PIX");
+      }
+      console.log("--- FIM INSPEÇÃO RESPONSE ---");
+      // --- FIM DO LOG ADICIONADO ---
+
       if (
         response.status === 201 &&
         response.data?.point_of_interaction?.transaction_data
@@ -140,7 +160,10 @@ export default function PaymentPage() {
           response.data.point_of_interaction.transaction_data
         );
       } else {
-        console.error("Resposta inesperada do servidor:", response);
+        console.error(
+          "Resposta inesperada do servidor (após inspeção):",
+          response
+        ); // Log adicional aqui
         throw new Error(
           response.data?.message || "Formato de resposta inválido ao gerar PIX."
         );
