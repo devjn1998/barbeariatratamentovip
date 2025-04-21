@@ -1680,7 +1680,6 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
           JSON.stringify(originalPaymentData).substring(0, 500) + "..."
         ); // Log para depuração
 
-        // Verifica se 'dados_agendamento_temp' existe E se 'cliente' existe DENTRO dele
         if (
           originalPaymentData.dados_agendamento_temp &&
           originalPaymentData.dados_agendamento_temp.cliente
@@ -1690,27 +1689,38 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
           );
           const agendamentosCollection = collection(db, "agendamentos");
 
-          // Extrai os dados do cliente da localização correta
           const clienteData =
             originalPaymentData.dados_agendamento_temp.cliente;
           const agendamentoData = originalPaymentData.dados_agendamento_temp;
+          // Obter o preço do pagamento original, se disponível
+          const precoAgendamento = originalPaymentData.transaction_amount || 0;
 
           try {
+            // ----- AJUSTE NA ESTRUTURA DO DOCUMENTO -----
             await addDoc(agendamentosCollection, {
-              // Acessa os dados do agendamento
+              // Dados do agendamento
               data: agendamentoData.data,
               horario: agendamentoData.horario,
               servico: agendamentoData.servico,
-              // Acessa os dados do cliente a partir de clienteData
-              clienteNome: clienteData.nome,
-              clienteTelefone: clienteData.telefone,
-              clienteEmail: clienteData.email,
-              statusPagamento: "approved",
-              paymentId: id,
+              preco: precoAgendamento, // Adicionar o preço
+              // Dados do cliente ANINHADOS
+              cliente: {
+                nome: clienteData.nome,
+                telefone: clienteData.telefone,
+                email: clienteData.email, // Incluir email se disponível
+              },
+              // Status e informações de pagamento
+              status: "agendado", // Ou "confirmado" se preferir indicar que já está pago
+              confirmado: true, // Marcar como confirmado pois o PIX foi aprovado
+              metodoPagamento: "pix", // Indicar método de pagamento
+              statusPagamento: "approved", // Manter status do pagamento MP
+              paymentId: id, // ID do pagamento do MP
               createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(), // Adicionar updatedAt
             });
+            // ----- FIM DO AJUSTE -----
             console.log(
-              `✅ Agendamento final criado com sucesso para pagamento ${id} na coleção 'agendamentos'`
+              `✅ Agendamento final criado com sucesso para pagamento ${id} na coleção 'agendamentos' (Estrutura Padronizada)`
             );
           } catch (addDocError) {
             console.error(
@@ -1720,7 +1730,6 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
             // Considerar notificação ou mecanismo de retry aqui
           }
         } else {
-          // Este erro agora indica que 'dados_agendamento_temp' ou 'dados_agendamento_temp.cliente' está faltando
           console.error(
             `❌ ERRO DE INTEGRIDADE: Estrutura esperada ('dados_agendamento_temp.cliente') ausente no documento 'payments/${id}'. Verifique a rota POST /api/pagamentos.`
           );
