@@ -1671,8 +1671,6 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
         `INFO: Pagamento ${id} aprovado. Verificando dados para agendamento final.`
       );
       const paymentDocRef = doc(db, "payments", id);
-
-      // 3. Ler os dados temporários salvos originalmente pela rota POST
       const paymentDataSnapshot = await getDoc(paymentDocRef);
 
       if (paymentDataSnapshot.exists()) {
@@ -1682,25 +1680,31 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
           JSON.stringify(originalPaymentData).substring(0, 500) + "..."
         ); // Log para depuração
 
-        // 4. Validar a estrutura esperada (com 'cliente' e 'dados_agendamento_temp' no nível raiz)
+        // Verifica se 'dados_agendamento_temp' existe E se 'cliente' existe DENTRO dele
         if (
           originalPaymentData.dados_agendamento_temp &&
-          originalPaymentData.cliente
+          originalPaymentData.dados_agendamento_temp.cliente
         ) {
           console.log(
             `INFO: Dados temporários validados para ${id}. Preparando para criar agendamento final.`
           );
           const agendamentosCollection = collection(db, "agendamentos");
 
+          // Extrai os dados do cliente da localização correta
+          const clienteData =
+            originalPaymentData.dados_agendamento_temp.cliente;
+          const agendamentoData = originalPaymentData.dados_agendamento_temp;
+
           try {
-            // 5. Criar o documento final na coleção 'agendamentos'
             await addDoc(agendamentosCollection, {
-              data: originalPaymentData.dados_agendamento_temp.data,
-              horario: originalPaymentData.dados_agendamento_temp.horario,
-              servico: originalPaymentData.dados_agendamento_temp.servico,
-              clienteNome: originalPaymentData.cliente.nome,
-              clienteTelefone: originalPaymentData.cliente.telefone,
-              clienteEmail: originalPaymentData.cliente.email,
+              // Acessa os dados do agendamento
+              data: agendamentoData.data,
+              horario: agendamentoData.horario,
+              servico: agendamentoData.servico,
+              // Acessa os dados do cliente a partir de clienteData
+              clienteNome: clienteData.nome,
+              clienteTelefone: clienteData.telefone,
+              clienteEmail: clienteData.email,
               statusPagamento: "approved",
               paymentId: id,
               createdAt: serverTimestamp(),
@@ -1716,9 +1720,9 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
             // Considerar notificação ou mecanismo de retry aqui
           }
         } else {
-          // Este erro só deve ocorrer se a ROTA POST não salvou os dados corretamente
+          // Este erro agora indica que 'dados_agendamento_temp' ou 'dados_agendamento_temp.cliente' está faltando
           console.error(
-            `❌ ERRO DE INTEGRIDADE: Dados ('cliente' ou 'dados_agendamento_temp') ausentes no documento 'payments/${id}' lido. Verifique a rota POST /api/pagamentos.`
+            `❌ ERRO DE INTEGRIDADE: Estrutura esperada ('dados_agendamento_temp.cliente') ausente no documento 'payments/${id}'. Verifique a rota POST /api/pagamentos.`
           );
           console.log(
             `🔍 Estrutura lida de payments/${id} que causou a falha:`,
