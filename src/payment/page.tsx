@@ -30,6 +30,7 @@ export default function PaymentPage() {
   // Estados para o processo de pagamento
   const [qrCodeBase64, setQrCodeBase64] = useState<string | null>(null);
   const [qrCodeKey, setQrCodeKey] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<string | number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -92,6 +93,7 @@ export default function PaymentPage() {
     setErrorMessage(null);
     setQrCodeBase64(null);
     setQrCodeKey(null);
+    setPaymentId(null);
 
     try {
       console.log("Criando pagamento PIX com os dados:", {
@@ -145,25 +147,26 @@ export default function PaymentPage() {
 
       const transactionData =
         response.data?.point_of_interaction?.transaction_data;
+      const receivedPaymentId = response.data?.id;
 
-      if (response.status === 201 && transactionData) {
+      if (response.status === 201 && transactionData && receivedPaymentId) {
         console.log("QR Code recebido:", response.data);
         setQrCodeBase64(transactionData.qr_code_base64 || null);
         setQrCodeKey(transactionData.qr_code || null);
+        setPaymentId(receivedPaymentId);
         setPaymentStatus("pending");
         setIsPolling(true);
         console.log(
-          "Dados do PIX recebidos (base64/key):",
+          "Dados do PIX recebidos (ID, base64/key):",
+          receivedPaymentId,
           transactionData.qr_code_base64,
           transactionData.qr_code
         );
       } else {
-        console.error(
-          "Resposta inesperada do servidor (após inspeção):",
-          response
-        );
+        console.error("Resposta inesperada ou ID faltando:", response);
         throw new Error(
-          response.data?.message || "Formato de resposta inválido ao gerar PIX."
+          response.data?.message ||
+            "Formato de resposta inválido ou ID do pagamento não recebido."
         );
       }
     } catch (error: any) {
@@ -240,80 +243,93 @@ export default function PaymentPage() {
     createPixPayment,
   ]);
 
-  // Função para verificar o status do pagamento (usada no polling)
-  const checkPaymentStatus = useCallback(async () => {
-    if (!qrCodeBase64 && !qrCodeKey) return; // Não faz nada se não tiver ID
+  // Polling para verificar o status do pagamento
+  useEffect(() => {
+    let pollingIntervalId: NodeJS.Timeout | null = null;
 
-    console.log(`Polling: Verificando status do pagamento...`);
-    try {
-      const response = await api.get<PaymentStatus>(
-        `/api/pagamentos/${qrCodeBase64 || qrCodeKey}/status`
-      );
-      const currentStatus = response.data.status;
-      console.log(`Polling: Status recebido: ${currentStatus}`);
-
-      if (response.data.success && currentStatus) {
-        setPaymentStatus(currentStatus); // Atualiza o estado local
-
-        // Se aprovado, para o polling e mostra sucesso
-        if (currentStatus === "approved") {
-          console.log("Pagamento APROVADO! Parando polling.");
-          toast.success("Pagamento confirmado!");
-          setIsPolling(false); // Para o polling
-        }
-        // Se falhar ou cancelar, para o polling e mostra erro
-        else if (
-          currentStatus === "rejected" ||
-          currentStatus === "cancelled" ||
-          currentStatus === "error"
-        ) {
-          console.log(`Pagamento ${currentStatus}. Parando polling.`);
-          setErrorMessage(
-            `O pagamento foi ${currentStatus}. Por favor, tente novamente ou contate o suporte.`
-          );
-          setIsPolling(false); // Para o polling
-        }
-        // Se ainda pendente, continua... (não faz nada aqui, o intervalo continua)
-      } else {
-        // Se a API retornar success: false ou status indefinido, continua tentando por um tempo
+    const checkPaymentStatus = async () => {
+      // Adicionar verificação se o ID já existe
+      if (!paymentId) {
         console.warn(
-          "Polling: Resposta da API de status não foi conclusiva.",
+          "Polling: ID do pagamento ainda não disponível para verificação."
+        );
+        // Opcional: parar o polling se o ID não for definido após um tempo?
+        return; // Sai se não houver ID
+      }
+      if (!isPolling) {
+        console.log("Polling pausado.");
+        if (pollingIntervalId) clearInterval(pollingIntervalId);
+        return; // Sai se o polling estiver pausado
+      }
+
+      console.log(`Polling: Verificando status do pagamento ID: ${paymentId}`);
+      try {
+        // Use o paymentId na URL da requisição GET
+        const response = await api.get<PaymentStatus>(
+          `/pagamentos/${paymentId}/status` // <-- Usar paymentId aqui
+        );
+
+        console.log(
+          "Polling: Resposta da verificação de status:",
           response.data
         );
+        const currentStatus = response.data?.status; // Assumindo que a API retorna { status: 'approved' | 'pending' | ... }
+
+        if (response.data?.success && currentStatus) {
+          setPaymentStatus(currentStatus); // Atualiza o estado local
+
+          if (currentStatus === "approved") {
+            console.log("Pagamento Aprovado! Parando polling.");
+            toast.success("Pagamento aprovado com sucesso!");
+            setIsPolling(false); // Para o polling
+            if (pollingIntervalId) clearInterval(pollingIntervalId);
+            // Navegar para a página de sucesso ou confirmação
+            // navigate('/booking-success'); // Exemplo
+          } else if (
+            currentStatus !== "pending" &&
+            currentStatus !== "in_process" // Adicione outros status que indicam espera
+          ) {
+            console.log(
+              `Status final recebido: ${currentStatus}. Parando polling.`
+            );
+            toast.error(`O pagamento foi ${currentStatus}.`);
+            setIsPolling(false); // Para o polling em caso de rejeição/cancelamento etc.
+            if (pollingIntervalId) clearInterval(pollingIntervalId);
+          }
+          // Se for 'pending' ou 'in_process', continua o polling
+        } else {
+          // Se a resposta não for sucesso ou não tiver status, loga mas continua tentando (ou implementa limite de tentativas)
+          console.warn(
+            "Polling: Resposta inválida ou sem sucesso da verificação de status:",
+            response.data
+          );
+        }
+      } catch (error: any) {
+        console.error("Polling: Erro ao verificar status do pagamento:", error);
+        // Decide se para o polling em caso de erro. Pode ser um erro de rede temporário.
+        // Talvez adicionar contador de erros e parar após X tentativas.
+        // Por enquanto, vamos deixar continuar.
+        // if (pollingIntervalId) clearInterval(pollingIntervalId);
+        // setIsPolling(false);
+        // toast.error("Erro ao verificar o status do pagamento. Tente recarregar a página.");
       }
-    } catch (error: any) {
-      console.error("Polling: Erro ao verificar status do pagamento:", error);
-      // Poderia parar o polling após muitos erros, mas por enquanto continua
-    }
-  }, [qrCodeBase64, qrCodeKey]); // Depende do ID do PIX
+    };
 
-  // Efeito para controlar o polling (iniciar/parar intervalo)
-  useEffect(() => {
-    if (isPolling && (qrCodeBase64 || qrCodeKey)) {
-      // Inicia o intervalo para verificar a cada 5 segundos
-      const intervalId = setInterval(checkPaymentStatus, 5000);
-      setPollingIntervalId(intervalId);
-      console.log(
-        `Polling iniciado para pagamento ${
-          qrCodeBase64 || qrCodeKey
-        }. Interval ID: ${intervalId}`
-      );
-
-      // Função de limpeza para parar o intervalo
-      return () => {
-        console.log(`Limpando intervalo de polling ${intervalId}`);
-        clearInterval(intervalId);
-        setPollingIntervalId(null);
-      };
-    } else if (!isPolling && pollingIntervalId) {
-      // Garante que o intervalo seja limpo se isPolling for setado para false
-      console.log(
-        `Parando polling manualmente. Limpando intervalo ${pollingIntervalId}`
-      );
-      clearInterval(pollingIntervalId);
-      setPollingIntervalId(null);
+    if (isPolling && paymentId) {
+      // Inicia imediatamente e depois a cada X segundos
+      checkPaymentStatus();
+      pollingIntervalId = setInterval(checkPaymentStatus, 10000); // Verifica a cada 10 segundos
     }
-  }, [isPolling, qrCodeBase64, qrCodeKey, checkPaymentStatus]); // Dependências do efeito
+
+    // Limpa o intervalo quando o componente desmontar ou o polling parar
+    return () => {
+      if (pollingIntervalId) {
+        console.log("Limpando intervalo de polling.");
+        clearInterval(pollingIntervalId);
+      }
+    };
+    // Dependências: isPolling e paymentId para iniciar/parar o polling
+  }, [isPolling, paymentId, navigate]); // Adicione navigate se usar dentro do effect
 
   // Função para copiar a chave PIX
   const handleCopyPixKey = () => {
