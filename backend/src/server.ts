@@ -1657,30 +1657,26 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
     console.log(`⏳ Verificando status do pagamento: ${id}`);
 
     try {
+      // Busca o status no Mercado Pago
       const paymentStatus = await mercadoPagoService.checkPaymentStatus(id);
 
+      // Log do status obtido (importante manter)
       console.log(`✅ Status do pagamento ${id} obtido:`, paymentStatus.status);
 
+      // Lógica para criar o agendamento final se aprovado
       if (paymentStatus.status === "approved") {
-        // Buscar dados temporários do pagamento/agendamento
-        const paymentDocRef = doc(db, "payments", id); // Referência ao documento
-        const paymentData = await getDoc(paymentDocRef); // Busca o documento
+        const paymentDocRef = doc(db, "payments", id);
+        const paymentData = await getDoc(paymentDocRef);
 
-        // Verifica se o documento com os dados temporários existe
         if (paymentData.exists()) {
-          const data = paymentData.data(); // Agora é seguro chamar .data()
-
-          // Verifica se os dados necessários existem (opcional, mas bom para robustez)
+          const data = paymentData.data();
           if (data.dados_agendamento_temp && data.cliente) {
-            // Adicionar o documento ao Firestore
             const agendamentosCollection = collection(db, "agendamentos");
             console.log(
               "INFO: Preparando para adicionar documento na coleção 'agendamentos'"
             );
-
             try {
               await addDoc(agendamentosCollection, {
-                // Acessa os dados a partir da variável 'data'
                 data: data.dados_agendamento_temp.data,
                 horario: data.dados_agendamento_temp.horario,
                 servico: data.dados_agendamento_temp.servico,
@@ -1706,16 +1702,13 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
             );
           }
         } else {
-          // Se o documento 'payments' não for encontrado
           console.error(
             `❌ Documento 'payments' não encontrado para o ID: ${id}, apesar do pagamento estar aprovado.`
           );
-          // Isso não deveria acontecer normalmente se o fluxo de criação de pagamento estiver correto.
         }
       }
 
-      // Retorna o status para o frontend independentemente de ter criado o agendamento aqui
-      // (o frontend só precisa saber o status do pagamento)
+      // Retorna o status atual para o frontend
       return res.status(200).json({
         success: true,
         status: paymentStatus.status,
@@ -1732,56 +1725,24 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
         `❌ Erro ao verificar status do pagamento ${id}:`,
         statusError
       );
-
-      // Tentar buscar do Firebase como fallback
-      if (FIREBASE_ENABLED) {
-        try {
-          const paymentDoc = await getDoc(doc(db, "payments", id));
-
-          if (paymentDoc.exists()) {
-            const paymentData = paymentDoc.data();
-            console.log(`📋 Pagamento ${id} encontrado no cache do Firebase`);
-
-            return res.status(200).json({
-              success: true,
-              status: paymentData.status || "unknown",
-              approved: paymentData.status === "approved",
-              statusDetail:
-                paymentData.statusDetail || "Dados obtidos do cache",
-              transactionAmount: paymentData.transaction_amount,
-              dateCreated: paymentData.date_created,
-              description: paymentData.description,
-              paymentMethodId: paymentData.payment_method_id,
-              id: paymentData.id,
-              fromCache: true,
-            });
-          }
-        } catch (fbError) {
-          console.error(`❌ Erro ao buscar do Firebase:`, fbError);
-          // Continuar para o fallback padrão
-        }
+      // Verificar se o erro é do Mercado Pago (ex: 404 - não encontrado)
+      if (statusError.response?.status === 404) {
+        return res.status(404).json({
+          success: false,
+          message: `Pagamento ${id} não encontrado no Mercado Pago.`,
+        });
       }
-
-      // Fallback padrão
-      return res.status(200).json({
-        success: true,
-        status: "unknown",
-        approved: false,
-        statusDetail: "Não foi possível obter o status do pagamento",
-        id: id,
-        error: statusError.message,
+      // Outro erro genérico
+      return res.status(500).json({
+        success: false,
+        message: "Erro interno ao verificar status do pagamento.",
       });
     }
-  } catch (error: any) {
-    console.error(`❌ Erro geral na rota de status:`, error);
-
-    return res.status(500).json({
-      success: false,
-      status: "error",
-      approved: false,
-      message: "Erro ao verificar status do pagamento",
-      error: error.message,
-    });
+  } catch (error) {
+    console.error("❌ Erro geral na rota /api/pagamentos/:id/status:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Erro interno no servidor." });
   }
 });
 
