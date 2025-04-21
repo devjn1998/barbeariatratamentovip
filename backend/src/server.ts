@@ -1674,6 +1674,10 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
           if (data.dados_agendamento_temp && data.cliente) {
             // Adicionar o documento ao Firestore
             const agendamentosCollection = collection(db, "agendamentos");
+            console.log(
+              "INFO: Preparando para adicionar documento na coleção 'agendamentos'"
+            );
+
             try {
               await addDoc(agendamentosCollection, {
                 // Acessa os dados a partir da variável 'data'
@@ -1687,22 +1691,25 @@ app.get("/api/pagamentos/:id/status", async (req: Request, res: Response) => {
                 paymentId: id,
                 createdAt: serverTimestamp(),
               });
-              console.log(`✅ Agendamento final criado para pagamento ${id}`);
-
-              // Opcional: Atualizar o status no documento 'payments' para evitar reprocessamento
-              // await updateDoc(paymentDocRef, { status_processamento: 'concluido' });
-
+              console.log(
+                `✅ Agendamento final criado para pagamento ${id} na coleção 'agendamentos'`
+              );
             } catch (addDocError) {
-               console.error(`❌ Erro ao salvar agendamento final para ${id} no Firestore:`, addDocError);
-               // Considerar como lidar com este erro - talvez tentar novamente?
+              console.error(
+                `❌ Erro ao salvar agendamento final para ${id} na coleção 'agendamentos':`,
+                addDocError
+              );
             }
           } else {
-             console.error(`❌ Dados temporários incompletos no documento 'payments' para ID: ${id}`);
-             // O pagamento foi aprovado, mas não encontramos os dados para agendar.
+            console.error(
+              `❌ Dados temporários incompletos no documento 'payments' para ID: ${id}`
+            );
           }
         } else {
           // Se o documento 'payments' não for encontrado
-          console.error(`❌ Documento 'payments' não encontrado para o ID: ${id}, apesar do pagamento estar aprovado.`);
+          console.error(
+            `❌ Documento 'payments' não encontrado para o ID: ${id}, apesar do pagamento estar aprovado.`
+          );
           // Isso não deveria acontecer normalmente se o fluxo de criação de pagamento estiver correto.
         }
       }

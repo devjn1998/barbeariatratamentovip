@@ -264,10 +264,8 @@ export default function PaymentPage() {
 
       console.log(`Polling: Verificando status do pagamento ID: ${paymentId}`);
       try {
-        // Use o paymentId na URL da requisição GET
-        const response = await api.get<PaymentStatus>(
-          `/pagamentos/${paymentId}/status` // <-- Usar paymentId aqui
-        );
+        // Adicione o prefixo /api/ na URL
+        const response = await api.get(`/api/pagamentos/${paymentId}/status`);
 
         console.log(
           "Polling: Resposta da verificação de status:",
@@ -286,8 +284,9 @@ export default function PaymentPage() {
             // Navegar para a página de sucesso ou confirmação
             // navigate('/booking-success'); // Exemplo
           } else if (
+            currentStatus &&
             currentStatus !== "pending" &&
-            currentStatus !== "in_process" // Adicione outros status que indicam espera
+            currentStatus !== "authorized" // Adicione outros status intermediários se houver
           ) {
             console.log(
               `Status final recebido: ${currentStatus}. Parando polling.`
@@ -296,7 +295,7 @@ export default function PaymentPage() {
             setIsPolling(false); // Para o polling em caso de rejeição/cancelamento etc.
             if (pollingIntervalId) clearInterval(pollingIntervalId);
           }
-          // Se for 'pending' ou 'in_process', continua o polling
+          // Se for 'pending' ou 'authorized', continua o polling
         } else {
           // Se a resposta não for sucesso ou não tiver status, loga mas continua tentando (ou implementa limite de tentativas)
           console.warn(
@@ -306,12 +305,22 @@ export default function PaymentPage() {
         }
       } catch (error: any) {
         console.error("Polling: Erro ao verificar status do pagamento:", error);
-        // Decide se para o polling em caso de erro. Pode ser um erro de rede temporário.
-        // Talvez adicionar contador de erros e parar após X tentativas.
-        // Por enquanto, vamos deixar continuar.
-        // if (pollingIntervalId) clearInterval(pollingIntervalId);
-        // setIsPolling(false);
-        // toast.error("Erro ao verificar o status do pagamento. Tente recarregar a página.");
+        // Log detalhado do erro da API, se disponível
+        if (error.response) {
+          console.error("API Error Details:", error.response);
+        }
+
+        // Parar o polling em caso de 404 definitivo
+        if (error.response?.status === 404) {
+          console.error(
+            `Polling: Pagamento com ID ${paymentId} não encontrado no backend (404). Parando polling.`
+          );
+          setErrorMessage(
+            "Não foi possível encontrar os detalhes do pagamento. Verifique o ID ou tente novamente mais tarde."
+          );
+          setIsPolling(false); // Para o polling
+        }
+        // Considerar parar após X tentativas falhas para outros erros?
       }
     };
 
