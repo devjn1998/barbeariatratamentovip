@@ -4,13 +4,6 @@ import { toast } from "react-toastify";
 import api from "../services/api"; // Ajuste o caminho se necessário
 import { servicos, Service } from "../data/services"; // Ajuste o caminho se necessário
 
-// Interface para os dados do PIX retornados pela API
-interface PixData {
-  id: number | string; // ID do pagamento Mercado Pago
-  qrCodeBase64: string;
-  qrCode: string; // Chave Copia e Cola
-}
-
 // Interface para o status do pagamento retornado pela API
 interface PaymentStatus {
   success: boolean;
@@ -35,10 +28,11 @@ export default function PaymentPage() {
   const [precoServico, setPrecoServico] = useState<number>(0);
 
   // Estados para o processo de pagamento
-  const [pixData, setPixData] = useState<PixData | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Loading inicial para buscar PIX
-  const [paymentStatus, setPaymentStatus] = useState<string | null>(null); // 'pending', 'approved', 'rejected', etc.
-  const [isPolling, setIsPolling] = useState(false); // Controla se o polling está ativo
+  const [qrCodeBase64, setQrCodeBase64] = useState<string | null>(null);
+  const [qrCodeKey, setQrCodeKey] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
   const [pollingIntervalId, setPollingIntervalId] =
     useState<NodeJS.Timeout | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -76,7 +70,7 @@ export default function PaymentPage() {
     setPrecoServico(findServicePrice(service));
   }, [searchParams, navigate, findServicePrice]);
 
-  // Função para criar o pagamento PIX no backend
+  // Função para criar o pagamento PIX
   const createPixPayment = useCallback(async () => {
     if (
       !dataAgendamento ||
@@ -96,6 +90,8 @@ export default function PaymentPage() {
 
     setIsLoading(true);
     setErrorMessage(null);
+    setQrCodeBase64(null);
+    setQrCodeKey(null);
 
     try {
       console.log("Criando pagamento PIX com os dados:", {
@@ -147,23 +143,25 @@ export default function PaymentPage() {
       console.log("--- FIM INSPEÇÃO RESPONSE ---");
       // --- FIM DO LOG ADICIONADO ---
 
-      if (
-        response.status === 201 &&
-        response.data?.point_of_interaction?.transaction_data
-      ) {
+      const transactionData =
+        response.data?.point_of_interaction?.transaction_data;
+
+      if (response.status === 201 && transactionData) {
         console.log("QR Code recebido:", response.data);
-        setPixData(response.data.point_of_interaction.transaction_data);
-        setPaymentStatus("pending"); // Define o status inicial como pendente
-        setIsPolling(true); // Inicia o polling após receber os dados do PIX
+        setQrCodeBase64(transactionData.qr_code_base64 || null);
+        setQrCodeKey(transactionData.qr_code || null);
+        setPaymentStatus("pending");
+        setIsPolling(true);
         console.log(
-          "Dados do PIX recebidos:",
-          response.data.point_of_interaction.transaction_data
+          "Dados do PIX recebidos (base64/key):",
+          transactionData.qr_code_base64,
+          transactionData.qr_code
         );
       } else {
         console.error(
           "Resposta inesperada do servidor (após inspeção):",
           response
-        ); // Log adicional aqui
+        );
         throw new Error(
           response.data?.message || "Formato de resposta inválido ao gerar PIX."
         );
@@ -244,12 +242,12 @@ export default function PaymentPage() {
 
   // Função para verificar o status do pagamento (usada no polling)
   const checkPaymentStatus = useCallback(async () => {
-    if (!pixData?.id) return; // Não faz nada se não tiver ID
+    if (!qrCodeBase64 && !qrCodeKey) return; // Não faz nada se não tiver ID
 
-    console.log(`Polling: Verificando status do pagamento ${pixData.id}...`);
+    console.log(`Polling: Verificando status do pagamento...`);
     try {
       const response = await api.get<PaymentStatus>(
-        `/api/pagamentos/${pixData.id}/status`
+        `/api/pagamentos/${qrCodeBase64 || qrCodeKey}/status`
       );
       const currentStatus = response.data.status;
       console.log(`Polling: Status recebido: ${currentStatus}`);
@@ -287,16 +285,18 @@ export default function PaymentPage() {
       console.error("Polling: Erro ao verificar status do pagamento:", error);
       // Poderia parar o polling após muitos erros, mas por enquanto continua
     }
-  }, [pixData?.id]); // Depende do ID do PIX
+  }, [qrCodeBase64, qrCodeKey]); // Depende do ID do PIX
 
   // Efeito para controlar o polling (iniciar/parar intervalo)
   useEffect(() => {
-    if (isPolling && pixData?.id) {
+    if (isPolling && (qrCodeBase64 || qrCodeKey)) {
       // Inicia o intervalo para verificar a cada 5 segundos
       const intervalId = setInterval(checkPaymentStatus, 5000);
       setPollingIntervalId(intervalId);
       console.log(
-        `Polling iniciado para pagamento ${pixData.id}. Interval ID: ${intervalId}`
+        `Polling iniciado para pagamento ${
+          qrCodeBase64 || qrCodeKey
+        }. Interval ID: ${intervalId}`
       );
 
       // Função de limpeza para parar o intervalo
@@ -313,15 +313,20 @@ export default function PaymentPage() {
       clearInterval(pollingIntervalId);
       setPollingIntervalId(null);
     }
-  }, [isPolling, pixData?.id, checkPaymentStatus]); // Dependências do efeito
+  }, [isPolling, qrCodeBase64, qrCodeKey, checkPaymentStatus]); // Dependências do efeito
 
   // Função para copiar a chave PIX
   const handleCopyPixKey = () => {
-    if (pixData?.qrCode) {
+    if (qrCodeKey) {
       navigator.clipboard
-        .writeText(pixData.qrCode)
-        .then(() => toast.success("Chave PIX copiada!"))
-        .catch((err) => toast.error("Erro ao copiar chave PIX."));
+        .writeText(qrCodeKey)
+        .then(() => {
+          toast.success("Chave PIX copiada!");
+        })
+        .catch((err) => {
+          toast.error("Falha ao copiar a chave.");
+          console.error("Erro ao copiar chave PIX:", err);
+        });
     }
   };
 
@@ -360,7 +365,7 @@ export default function PaymentPage() {
     );
   }
 
-  if (errorMessage) {
+  if (errorMessage && !qrCodeBase64 && !qrCodeKey) {
     return (
       <div className="max-w-md mx-auto text-center py-10 px-4">
         <h2 className="text-2xl font-bold text-red-600 mb-4">
@@ -441,8 +446,8 @@ export default function PaymentPage() {
     );
   }
 
-  // Se ainda não foi aprovado e temos dados do PIX, mostra o QR Code/Chave
-  if (pixData) {
+  // Se ainda não foi aprovado e temos dados do PIX (base64 ou chave), mostra o QR Code/Chave
+  if (qrCodeBase64 || qrCodeKey) {
     return (
       <div className="max-w-md mx-auto text-center py-10 px-4">
         <h2 className="text-2xl font-bold mb-4">Pague com PIX</h2>
@@ -452,40 +457,48 @@ export default function PaymentPage() {
 
         {/* QR Code */}
         <div className="mb-6 bg-white p-4 inline-block shadow-lg rounded-lg">
-          {pixData && pixData.qrCodeBase64 ? (
+          {qrCodeBase64 ? (
             <img
-              src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+              src={`data:image/png;base64,${qrCodeBase64}`}
               alt="PIX QR Code"
               className="w-64 h-64 mx-auto"
             />
           ) : (
             <div className="w-64 h-64 mx-auto flex items-center justify-center bg-gray-200">
-              <p className="text-gray-500 text-sm">Carregando QR Code...</p>
+              {isLoading ? (
+                <p className="text-gray-500 text-sm">Carregando QR Code...</p>
+              ) : (
+                <p className="text-red-500 text-sm">
+                  Falha ao carregar QR Code.
+                </p>
+              )}
             </div>
           )}
         </div>
 
         {/* Chave PIX Copia e Cola */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Ou copie a chave PIX:
-          </label>
-          <div className="flex items-center justify-center border rounded-lg p-2 bg-gray-50">
-            <input
-              type="text"
-              readOnly
-              value={pixData.qrCode}
-              className="flex-grow bg-transparent outline-none text-sm text-gray-700 mr-2"
-            />
-            <button
-              onClick={handleCopyPixKey}
-              className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1 px-3 rounded transition-colors"
-              title="Copiar Chave PIX"
-            >
-              Copiar
-            </button>
+        {qrCodeKey && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ou copie a chave PIX:
+            </label>
+            <div className="flex items-center justify-center border rounded-lg p-2 bg-gray-50">
+              <input
+                type="text"
+                readOnly
+                value={qrCodeKey}
+                className="flex-grow bg-transparent outline-none text-sm text-gray-700 mr-2"
+              />
+              <button
+                onClick={handleCopyPixKey}
+                className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1 px-3 rounded transition-colors"
+                title="Copiar Chave PIX"
+              >
+                Copiar
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Indicador de Status */}
         <div className="mt-8">
