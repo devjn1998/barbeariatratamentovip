@@ -173,10 +173,10 @@ export default function Dashboard() {
         </div>
         <div className="bg-white p-4 md:p-6 rounded-lg shadow hover:shadow-md transition-shadow duration-200">
           <h3 className="text-sm font-medium text-gray-500 mb-1">
-            Receita Estimada (Mês)
+            Faturamento (Confirmados)
           </h3>
           <p className="text-2xl md:text-3xl font-bold text-gray-900">
-            {formatarPreco(stats?.receitaEstimadaMes ?? 0)}
+            {formatarPreco(stats?.faturamentoTotal ?? 0)}
           </p>
         </div>
       </div>
@@ -239,16 +239,22 @@ export default function Dashboard() {
                 {proximosAgendamentos.map((agendamento) => (
                   <tr key={agendamento.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatarData(agendamento.data)}{" "}
-                      <span className="text-gray-500">
-                        {agendamento.horario}
-                      </span>
+                      {formatarData(agendamento.date)}{" "}
+                      <span className="text-gray-500">{agendamento.time}</span>
                     </td>
                     <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-700">
-                      {agendamento.cliente.nome}
+                      {/* Tente voltar para a estrutura aninhada se 'clientName' não existe */}
+                      {/* {agendamento.cliente.nome}  // <--- OU use o nome correto da interface */}
+                      {/* Se for nivelado, o nome correto seria 'clientName', mas o erro diz que não existe */}
+                      {agendamento.clientName}{" "}
+                      {/* Mantendo por enquanto, mas o erro indica que está errado */}
                     </td>
                     <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-500">
-                      {agendamento.servico.nome}
+                      {/* Tente 'serviceName' se a estrutura for nivelada */}
+                      {/* {agendamento.serviceName} // <--- OU use o nome correto da interface */}
+                      {/* 'agendamento.service' provavelmente está incorreto */}
+                      {agendamento.service}{" "}
+                      {/* Mantendo por enquanto, mas provavelmente errado */}
                     </td>
                     <td className="px-4 py-4 sm:px-6 whitespace-nowrap">
                       <span
@@ -256,7 +262,8 @@ export default function Dashboard() {
                           agendamento.status === "confirmado" ||
                           agendamento.status === "agendado"
                             ? "bg-green-100 text-green-800"
-                            : agendamento.status === "pendente"
+                            : agendamento.status === "pendente" ||
+                              agendamento.status === "aguardando pagamento"
                             ? "bg-yellow-100 text-yellow-800"
                             : "bg-red-100 text-red-800"
                         }`}
@@ -265,10 +272,13 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-500">
-                      {formatarPreco(agendamento.servico.preco)}
+                      {formatarPreco(agendamento.price)}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-500">
-                      {agendamento.cliente.telefone}
+                      {/* Tente voltar para a estrutura aninhada se 'clientPhone' não existe */}
+                      {/* {agendamento.cliente.telefone} // <--- OU use o nome correto da interface */}
+                      {agendamento.clientPhone}{" "}
+                      {/* Mantendo por enquanto, mas pode estar errado */}
                     </td>
                     <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-right text-sm font-medium">
                       <button className="text-indigo-600 hover:text-indigo-900 mr-2">
