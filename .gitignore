@@ -22,3 +22,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+barbearia-andin-firebase-adminsdk-fbsvc-3bf94462ce.json
+setAdminClaim.js

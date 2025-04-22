@@ -15,13 +15,23 @@ dotenv.config();
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyAQ-Aq4WhvOVJs-jLjKvXBt3_WT5msaHJQ",
-  authDomain: "barbearia-andin.firebaseapp.com",
-  projectId: "barbearia-andin",
-  storageBucket: "barbearia-andin.firebasestorage.app",
-  messagingSenderId: "336746868613",
-  appId: "1:336746868613:web:ea217625a53b3d88f9deec",
-  measurementId: "G-7E4CMDZV4N",
+  apiKey:
+    process.env.REACT_APP_FIREBASE_API_KEY ||
+    "AIzaSyAQ-Aq4WhvOVJs-jLjKvXBt3_WT5msaHJQ",
+  authDomain:
+    process.env.REACT_APP_FIREBASE_AUTH_DOMAIN ||
+    "barbearia-andin.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "barbearia-andin",
+  storageBucket:
+    process.env.REACT_APP_FIREBASE_STORAGE_BUCKET ||
+    "barbearia-andin.firebasestorage.app",
+  messagingSenderId:
+    process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "336746868613",
+  appId:
+    process.env.REACT_APP_FIREBASE_APP_ID ||
+    "1:336746868613:web:ea217625a53b3d88f9deec",
+  measurementId:
+    process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-7E4CMDZV4N",
 };
 
 // Verificar se as configurações estão presentes
@@ -100,15 +110,15 @@ export { app, db };
 console.log("🏁 Executando config/firebase.ts...");
 
 try {
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON;
   if (!serviceAccountJson) {
     console.error(
-      "❌ Variável FIREBASE_SERVICE_ACCOUNT_KEY NÃO encontrada no ambiente!"
+      "❌ Variável FIREBASE_SERVICE_ACCOUNT_KEY_JSON NÃO encontrada no ambiente!"
     );
-    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is not set.");
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY_JSON is not set.");
   }
   console.log(
-    "🔑 Variável FIREBASE_SERVICE_ACCOUNT_KEY encontrada. Tentando parse..."
+    "🔑 Variável FIREBASE_SERVICE_ACCOUNT_KEY_JSON encontrada. Tentando parse..."
   );
 
   try {
