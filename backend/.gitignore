@@ -42,6 +42,7 @@ coverage/
 firebase-debug.log
 firebase-debug.*.log
 .firebase/
+barbearia-andin-firebase-adminsdk-fbsvc-3bf94462ce.json
 
 # Mercado Pago
 mp-debug.log
