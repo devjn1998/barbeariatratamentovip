@@ -835,84 +835,168 @@ async function criarOuAtualizarAgendamento(pagamento: any) {
 }
 
 // Rota GET para buscar agendamentos (com filtro opcional por data e status confirmado)
-app.get("/api/agendamentos", async (req: Request, res: Response) => {
-  try {
-    const { data, confirmado } = req.query; // Pega 'data' e 'confirmado' da query string
+// Ajustada para retornar TODOS se nenhum filtro for passado
+app.get(
+  "/api/agendamentos",
+  checkAuth,
+  checkAdmin,
+  async (req: Request, res: Response) => {
+    const routeStartTime = Date.now();
+    const requestId = `req_${routeStartTime}_${Math.random()
+      .toString(36)
+      .substring(2, 7)}`;
+    const user = (req as any).user;
     console.log(
-      `🔍 Buscando agendamentos. Filtros: Data=${data}, Confirmado=${confirmado}`
+      `[${requestId}] GET /api/agendamentos INI por Admin: ${user.uid}`
     );
 
-    const agendamentosRef = collection(db, "agendamentos");
-    let q;
-
-    // Constrói a query baseada nos filtros
-    if (data && confirmado === "true") {
-      // Filtra por data E confirmado = true
-      q = query(
-        agendamentosRef,
-        where("data", "==", data as string),
-        where("confirmado", "==", true) // <<< NOVO FILTRO
+    try {
+      const { data, confirmado } = req.query;
+      console.log(
+        `[${requestId}] Filtros recebidos: Data=${data}, Confirmado=${confirmado}`
       );
-      console.log(`   Querying by date (${data}) AND confirmado=true`);
-    } else if (data) {
-      // Filtra apenas por data
-      q = query(agendamentosRef, where("data", "==", data as string));
-      console.log(`   Querying by date (${data}) only`);
-    } else {
-      // Sem filtros (retorna todos - CUIDADO: pode ser muitos dados)
-      // Em produção, considere limitar ou exigir filtros
-      q = query(agendamentosRef);
-      console.log("   Querying all appointments (no filters)");
+
+      const agendamentosRef = collection(db, "agendamentos");
+      let q; // Query do Firestore
+
+      // <<< LÓGICA DE FILTRO AJUSTADA >>>
+      if (data && typeof data === "string") {
+        // Se a data foi fornecida, filtra por data
+        // Converte 'confirmado' para boolean se presente, senão busca todos para a data
+        const buscaConfirmado =
+          confirmado === "true"
+            ? true
+            : confirmado === "false"
+            ? false
+            : undefined;
+
+        if (buscaConfirmado !== undefined) {
+          console.log(
+            `[${requestId}] Query: Filtrando por data=${data} E confirmado=${buscaConfirmado}`
+          );
+          q = query(
+            agendamentosRef,
+            where("data", "==", data),
+            where("confirmado", "==", buscaConfirmado)
+          );
+        } else {
+          console.log(
+            `[${requestId}] Query: Filtrando APENAS por data=${data}`
+          );
+          q = query(agendamentosRef, where("data", "==", data));
+        }
+      } else if (confirmado !== undefined) {
+        // Se SÓ confirmado foi fornecido (menos comum, mas possível)
+        const buscaConfirmado = confirmado === "true";
+        console.log(
+          `[${requestId}] Query: Filtrando APENAS por confirmado=${buscaConfirmado}`
+        );
+        q = query(agendamentosRef, where("confirmado", "==", buscaConfirmado));
+      } else {
+        // Se NENHUM filtro foi fornecido, busca TODOS os agendamentos (para o admin)
+        console.log(
+          `[${requestId}] Query: Sem filtros específicos, buscando TODOS os agendamentos para admin.`
+        );
+        q = query(agendamentosRef); // Busca todos os documentos na coleção
+      }
+      // <<< FIM DO AJUSTE NA LÓGICA DE FILTRO >>>
+
+      const querySnapshot = await getDocs(q);
+      const agendamentos: any[] = []; // Usar 'any' temporariamente ou definir um tipo mais robusto
+      querySnapshot.forEach((doc) => {
+        agendamentos.push({ id: doc.id, ...doc.data() });
+      });
+
+      const routeEndTime = Date.now();
+      console.log(
+        `[${requestId}] GET /api/agendamentos FIM: ${
+          agendamentos.length
+        } agendamentos encontrados em ${routeEndTime - routeStartTime}ms.`
+      );
+      return res.json(agendamentos);
+    } catch (error: any) {
+      const routeEndTime = Date.now();
+      console.error(
+        `[${requestId}] GET /api/agendamentos ERRO após ${
+          routeEndTime - routeStartTime
+        }ms:`,
+        error
+      );
+      return res.status(500).json({
+        message: "Erro ao buscar agendamentos",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// Rota GET para buscar um agendamento específico por ID (Manter como está)
+app.get(
+  "/api/agendamentos/:id",
+  checkAuth,
+  checkAdmin,
+  async (req: Request, res: Response) => {
+    const routeStartTime = Date.now();
+    const requestId = `req_${routeStartTime}_${Math.random()
+      .toString(36)
+      .substring(2, 7)}`;
+    const user = (req as any).user;
+    const { id } = req.params;
+    console.log(
+      `[${requestId}] GET /api/agendamentos/${id} INI por Admin: ${user.uid}`
+    );
+
+    // Evitar que 'all' seja tratado como ID válido aqui explicitamente
+    if (id === "all") {
+      console.warn(
+        `[${requestId}] Tentativa inválida de buscar ID 'all' na rota de ID específico.`
+      );
+      return res.status(400).json({ message: "ID de agendamento inválido." });
     }
 
-    const querySnapshot = await getDocs(q);
-    const agendamentos = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    try {
+      const docRef = doc(db, "agendamentos", id);
+      const docSnap = await getDoc(docRef);
 
-    console.log(`✅ Retornando ${agendamentos.length} agendamentos.`);
-    return res.json(agendamentos);
-  } catch (error: any) {
-    console.error("❌ Erro ao buscar agendamentos:", error);
-    return res
-      .status(500)
-      .json({ error: "Erro ao buscar agendamentos", message: error.message });
+      const routeEndTime = Date.now();
+      if (docSnap.exists()) {
+        console.log(
+          `[${requestId}] GET /api/agendamentos/${id} FIM: Agendamento encontrado em ${
+            routeEndTime - routeStartTime
+          }ms.`
+        );
+        res.json({ id: docSnap.id, ...docSnap.data() });
+      } else {
+        console.log(
+          `[${requestId}] GET /api/agendamentos/${id} FIM: Agendamento NÃO encontrado em ${
+            routeEndTime - routeStartTime
+          }ms.`
+        );
+        res.status(404).json({ message: "Agendamento não encontrado" });
+      }
+    } catch (error: any) {
+      const routeEndTime = Date.now();
+      console.error(
+        `[${requestId}] GET /api/agendamentos/${id} ERRO após ${
+          routeEndTime - routeStartTime
+        }ms:`,
+        error
+      );
+      res
+        .status(500)
+        .json({ message: "Erro ao buscar agendamento", error: error.message });
+    }
   }
-});
+);
 
+/* <<<< MANTER ESTA ROTA COMENTADA OU REMOVIDA >>>>
 // Rota GET para buscar TODOS os agendamentos (REMOVER OU RESTRINGIR FORTEMENTE)
-/* <<<< REMOVER ESTA ROTA INTEIRA ou adicionar paginação/filtros obrigatórios >>>>
 app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
-  try {
-    console.log("🔍 Buscando todos os agendamentos");
-
-    // Buscar agendamentos no Firebase
-    const agendamentosRef = collection(db, "agendamentos");
-    const querySnapshot = await getDocs(agendamentosRef);
-
-    const agendamentos: AgendamentoDebug[] = [];
-
-    querySnapshot.forEach((doc: any) => {
-      const agendamento = doc.data();
-      agendamentos.push({
-        id: doc.id,
-        ...agendamento,
-      });
-    });
-
-    console.log(`✅ Total de ${agendamentos.length} agendamentos encontrados`);
-
-    return res.json(agendamentos);
-  } catch (error: any) {
-    console.error("❌ Erro ao buscar todos os agendamentos:", error);
-    return res.status(500).json({
-      error: "Erro ao buscar agendamentos",
-      details: error.message,
-    });
-  }
+  // ...
 });
-*/ // <<<< FIM DA REMOÇÃO >>>>
+*/
+
+// ... (restante das rotas POST, PUT, DELETE, etc.)
 
 // Rota POST para CRIAR um novo agendamento (usada pelo formulário manual)
 app.post("/api/agendamentos", async (req: Request, res: Response) => {

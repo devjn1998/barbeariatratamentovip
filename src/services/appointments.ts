@@ -13,18 +13,28 @@ import api from "./api";
 import { toast } from "react-toastify";
 
 /**
- * Carrega todos os agendamentos
+ * Busca TODOS os agendamentos (agora chama a rota base /api/agendamentos)
+ * IMPORTANTE: O backend precisa ser ajustado para retornar todos quando sem filtros.
  */
 export async function getAllAppointments(): Promise<NormalizedAppointment[]> {
+  const startTime = Date.now();
+  console.log("🔄 [getAllAppointments] Iniciando busca...");
   try {
-    const { data } = await api.get("/api/agendamentos/all");
-
-    // Normalizar dados
-    return Array.isArray(data)
-      ? data.map((appointment) => adaptMixedAppointmentData(appointment))
-      : [];
-  } catch (error) {
-    console.error("Erro ao carregar agendamentos:", error);
+    const response = await api.get<Appointment[]>("/api/agendamentos");
+    const endTime = Date.now();
+    console.log(
+      `✅ [getAllAppointments] Sucesso! ${
+        response.data.length
+      } agendamentos recebidos em ${endTime - startTime}ms.`
+    );
+    return response.data.map(adaptMixedAppointmentData);
+  } catch (error: any) {
+    const endTime = Date.now();
+    console.error(
+      `❌ [getAllAppointments] Erro após ${endTime - startTime}ms:`,
+      error
+    );
+    toast.error("Erro ao carregar todos os agendamentos.");
     throw new Error("Não foi possível carregar os agendamentos");
   }
 }
