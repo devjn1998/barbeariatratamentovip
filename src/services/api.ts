@@ -1,4 +1,5 @@
 import axios from "axios";
+import { auth } from "../config/firebase"; // <<< Importar auth do Firebase
 
 // Criar instância base do axios com configuração apropriada para CORS
 const api = axios.create({
@@ -12,6 +13,39 @@ const api = axios.create({
   withCredentials: true, // importante para CORS com credenciais
 });
 
+// --- INTERCEPTOR DE REQUISIÇÃO PARA ADICIONAR TOKEN ---
+api.interceptors.request.use(
+  async (config) => {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const token = await user.getIdToken(); // Obtém o token atual (ou atualiza se expirado)
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log(
+          "[API Interceptor] Token adicionado ao cabeçalho Authorization."
+        );
+      } catch (error) {
+        console.error("[API Interceptor] Erro ao obter token ID:", error);
+        // Lidar com erro de obtenção de token (ex: redirecionar para login?)
+        // Dependendo da sua lógica de AuthContext, isso pode já ser tratado lá.
+      }
+    } else {
+      console.log(
+        "[API Interceptor] Nenhum usuário logado, requisição sem token."
+      );
+    }
+    return config;
+  },
+  (error) => {
+    console.error(
+      "[API Interceptor] Erro na configuração da requisição:",
+      error
+    );
+    return Promise.reject(error);
+  }
+);
+// --- FIM DO INTERCEPTOR ---
+
 // Interceptor de resposta simplificado
 api.interceptors.response.use(
   (response) => response,
@@ -23,6 +57,24 @@ api.interceptors.response.use(
       message: error.message,
       data: error.response?.data,
     });
+
+    // --- TRATAMENTO DE ERRO 401/403 ---
+    if (
+      error.response &&
+      (error.response.status === 401 || error.response.status === 403)
+    ) {
+      // Se o erro for de autenticação/autorização,
+      // pode ser útil deslogar o usuário ou redirecionar para o login.
+      // Isso depende da sua implementação do AuthContext.
+      console.warn(
+        `[API Interceptor] Erro ${error.response.status}. Verifique autenticação/permissões.`
+      );
+      // Exemplo: Chamar uma função de logout do seu AuthContext
+      // authContext.logout(); // (Ajuste conforme sua implementação)
+      // Ou redirecionar:
+      // window.location.href = '/admin/login';
+    }
+    // --- FIM DO TRATAMENTO ---
 
     return Promise.reject(error);
   }

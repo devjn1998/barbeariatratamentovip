@@ -1,6 +1,6 @@
 import cors from "cors";
 import dotenv from "dotenv";
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express"; // <<< Adicionar NextFunction
 import {
   collection,
   deleteDoc,
@@ -18,7 +18,7 @@ import {
   DocumentData,
 } from "firebase/firestore";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { adminDb, db } from "./config/firebase";
+import { adminDb, db, auth } from "./config/firebase"; // <<< Importar 'auth'
 import { mercadoPagoService } from "./services/mercadoPagoService";
 import { resetDatabaseCollections } from "./utils/databaseAdmin";
 import {
@@ -881,8 +881,8 @@ app.get("/api/agendamentos", async (req: Request, res: Response) => {
   }
 });
 
-// Rota GET para buscar TODOS os agendamentos (mantida por compatibilidade, se necessário)
-// Considere remover ou proteger melhor se não for usada diretamente pelo admin otimizado
+// Rota GET para buscar TODOS os agendamentos (REMOVER OU RESTRINGIR FORTEMENTE)
+/* <<<< REMOVER ESTA ROTA INTEIRA ou adicionar paginação/filtros obrigatórios >>>>
 app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
   try {
     console.log("🔍 Buscando todos os agendamentos");
@@ -912,6 +912,7 @@ app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
     });
   }
 });
+*/ // <<<< FIM DA REMOÇÃO >>>>
 
 // Rota POST para CRIAR um novo agendamento (usada pelo formulário manual)
 app.post("/api/agendamentos", async (req: Request, res: Response) => {

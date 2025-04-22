@@ -8,6 +8,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import * as admin from "firebase-admin";
+import { getAuth } from "firebase-admin/auth";
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -174,6 +175,9 @@ try {
 
 export const adminDb = admin.firestore();
 console.log("Firestore Admin Instance (adminDb) criada.");
+
+export const auth = getAuth();
+console.log("Firebase Admin Auth Instance (auth) criada.");
 
 // Mantenha a inicialização do cliente se você também a usa no backend
 // import { initializeApp } from 'firebase/app';

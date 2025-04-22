@@ -21,7 +21,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "firebase": "^11.6.0",
-    "firebase-admin": "^13.1.0",
+    "firebase-admin": "^13.2.0",
     "mercadopago": "^2.3.0",
     "morgan": "^1.10.0",
     "stripe": "^17.6.0"

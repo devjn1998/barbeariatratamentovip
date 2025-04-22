@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Função para verificar se o usuário autenticado tem a claim 'admin'
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin === true;
+    }
+
+    // Regra mais segura para agendamentos
+    match /agendamentos/{agendamentoId} {
+      // Permite leitura/escrita apenas para admins autenticados
+      allow read, write: if isAdmin();
+      // Considere se clientes precisam ler seus próprios agendamentos (exigiria regra adicional)
+    }
+    // Permite listar (query) apenas para admins
+    match /agendamentos {
+       allow list: if isAdmin();
+    }
+
+    // Regra mais segura para bloqueios
+    match /bloqueios/{bloqueioId} {
+       allow read, write: if isAdmin();
+    }
+    match /bloqueios {
+       allow list: if isAdmin();
+    }
+
+    // Regra para pagamentos (Ajustar conforme necessidade)
+    // Talvez permitir que o usuário leia/escreva seu próprio pagamento?
+    // Ou manter apenas admin? Exemplo: Apenas Admin
+    match /payments/{paymentId} {
+       allow read, write: if isAdmin();
+    }
+     match /payments {
+       allow list: if isAdmin();
+    }
+
+    // Regra de fallback mais restritiva (Opcional, mas recomendado)
+    // Impede acesso a qualquer outra coleção não definida explicitamente
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 
