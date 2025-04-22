@@ -916,77 +916,127 @@ app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
 // Rota POST para CRIAR um novo agendamento (usada pelo formulário manual)
 app.post("/api/agendamentos", async (req: Request, res: Response) => {
   const routeStartTime = Date.now();
-  console.log(`[Criar Agendamento INI ${routeStartTime}] Recebida requisição`);
+  const requestId = `req_${routeStartTime}_${Math.random()
+    .toString(36)
+    .substring(2, 7)}`;
+  console.log(`[${requestId}] POST /api/agendamentos INI`);
+
   try {
     const dadosAgendamento = req.body;
     console.log(
-      `[Criar Agendamento ${routeStartTime}] Dados recebidos:`,
-      dadosAgendamento
+      `[${requestId}] Dados recebidos:`,
+      JSON.stringify(dadosAgendamento)
     );
 
     // 1. Validar os dados recebidos (essencial!)
-    // Adapte a validação conforme necessário para os campos manuais
-    const validacao = validarDadosAgendamento(dadosAgendamento); // Reutiliza ou cria uma validação específica
-    if (!validacao.valid) {
+    if (
+      !dadosAgendamento.data ||
+      !dadosAgendamento.horario ||
+      !dadosAgendamento.servico ||
+      !(dadosAgendamento.cliente?.nome || dadosAgendamento.nome) ||
+      !(dadosAgendamento.cliente?.telefone || dadosAgendamento.telefone)
+    ) {
       console.warn(
-        `[Criar Agendamento ${routeStartTime}] Dados inválidos:`,
-        validacao.errors
+        `[${requestId}] Dados básicos inválidos: Faltam campos obrigatórios.`
       );
       return res
         .status(400)
-        .json({ message: "Dados inválidos.", errors: validacao.errors });
+        .json({ message: "Dados inválidos: Faltam campos obrigatórios." });
     }
+    // Adicione sua validação mais completa aqui
 
     // 2. Preparar dados para salvar no Firestore
-    // Certifique-se que o formato está correto, incluindo o objeto 'cliente'
+    const nomeCliente =
+      dadosAgendamento.cliente?.nome ||
+      dadosAgendamento.nome ||
+      "Nome não informado";
+    const telefoneCliente =
+      dadosAgendamento.cliente?.telefone ||
+      dadosAgendamento.telefone ||
+      "Telefone não informado";
+    // ----- AJUSTE PARA EMAIL PADRÃO -----
+    const emailCliente =
+      dadosAgendamento.cliente?.email ||
+      dadosAgendamento.email || // Pega o email se existir
+      "cliente@email.com"; // <<< Define o padrão se não existir
+    // ----- FIM DO AJUSTE -----
+
+    // ----- REMOVIDO: Bloco de criação condicional do cliente -----
+    // const clienteParaSalvar: { nome: string; telefone: string; email?: string } = {
+    //     nome: nomeCliente,
+    //     telefone: telefoneCliente,
+    // };
+    // if (emailCliente) {
+    //     clienteParaSalvar.email = emailCliente;
+    // }
+    // ----- FIM DA REMOÇÃO -----
+
+    // ----- AJUSTE NA LÓGICA DO CAMPO 'confirmado' -----
+    let confirmadoFinal = false; // Padrão é false
+    if (typeof dadosAgendamento.confirmado === "boolean") {
+      confirmadoFinal = dadosAgendamento.confirmado;
+    } else if (dadosAgendamento.status === "confirmado") {
+      confirmadoFinal = true;
+    } else if (dadosAgendamento.status === "agendado") {
+      confirmadoFinal = true;
+    }
+    // ----- FIM DO AJUSTE -----
+
     const dadosParaSalvar = {
       data: dadosAgendamento.data,
       horario: dadosAgendamento.horario,
       servico: dadosAgendamento.servico,
-      preco: dadosAgendamento.preco || 0, // Adicionar preço se informado, senão 0
+      preco: dadosAgendamento.preco || 0,
+      // ----- USA DIRETAMENTE emailCliente (que agora tem padrão) -----
       cliente: {
-        nome: dadosAgendamento.cliente?.nome || dadosAgendamento.nome, // Acessa aninhado ou direto
-        telefone:
-          dadosAgendamento.cliente?.telefone || dadosAgendamento.telefone,
-        email: dadosAgendamento.cliente?.email || dadosAgendamento.email, // Opcional
+        nome: nomeCliente,
+        telefone: telefoneCliente,
+        email: emailCliente, // <<< Sempre terá um valor (real ou padrão)
       },
-      status: dadosAgendamento.status || "agendado", // Status padrão ou o enviado
-      confirmado:
-        dadosAgendamento.confirmado === true ||
-        dadosAgendamento.status === "confirmado", // Define 'confirmado' baseado no status ou valor explícito
-      metodoPagamento: dadosAgendamento.metodoPagamento || "manual", // Indica que foi adicionado manualmente
+      // ----- FIM DO AJUSTE -----
+      status: dadosAgendamento.status || "agendado",
+      confirmado: confirmadoFinal,
+      metodoPagamento: dadosAgendamento.metodoPagamento || "manual",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
 
+    console.log(
+      `[${requestId}] Dados preparados para Firestore:`,
+      JSON.stringify(dadosParaSalvar)
+    );
+
     // 3. Adicionar o documento ao Firestore
-    console.log(
-      `[Criar Agendamento ${routeStartTime}] Tentando adicionar ao Firestore...`
-    );
-    console.time(`[Criar Agendamento ${routeStartTime}] Add Firestore`);
-    const docRef = await addDoc(
-      collection(db, "agendamentos"),
-      dadosParaSalvar
-    );
-    console.timeEnd(`[Criar Agendamento ${routeStartTime}] Add Firestore`);
-    console.log(
-      `[Criar Agendamento FIM ${routeStartTime}] Agendamento criado com ID: ${
-        docRef.id
-      }. Tempo total: ${Date.now() - routeStartTime}ms`
-    );
+    console.log(`[${requestId}] Tentando adicionar ao Firestore...`);
+    console.time(`[${requestId}] Add Firestore`);
+    const agendamentosCollection = collection(db, "agendamentos");
+    const docRef = await addDoc(agendamentosCollection, dadosParaSalvar);
+    console.timeEnd(`[${requestId}] Add Firestore`);
+    console.log(`[${requestId}] Agendamento criado com ID: ${docRef.id}`);
 
     // 4. Retornar sucesso com o ID do novo agendamento
     const novoAgendamento = (await getDoc(docRef)).data();
+    console.log(
+      `[${requestId}] POST /api/agendamentos FIM (Sucesso). Tempo total: ${
+        Date.now() - routeStartTime
+      }ms`
+    );
     return res.status(201).json({
       message: "Agendamento criado com sucesso!",
       id: docRef.id,
-      ...novoAgendamento, // Retorna o agendamento criado
+      ...novoAgendamento,
     });
   } catch (error: any) {
     console.error(
-      `[Criar Agendamento ERRO ${routeStartTime}] Erro ao criar agendamento:`,
-      error
+      `[${requestId}] POST /api/agendamentos ERRO. Tempo total: ${
+        Date.now() - routeStartTime
+      }ms`
     );
+    console.error(`[${requestId}] Mensagem de Erro:`, error.message);
+    console.error(`[${requestId}] Stack Trace:`, error.stack);
+    if (error.details) {
+      console.error(`[${requestId}] Detalhes do Erro:`, error.details);
+    }
     return res.status(500).json({
       message: "Erro interno ao criar agendamento.",
       error: error.message,
