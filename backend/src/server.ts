@@ -1,6 +1,6 @@
 import cors from "cors";
 import dotenv from "dotenv";
-import express, { Request, Response, NextFunction } from "express"; // <<< Adicionar NextFunction
+import express, { Request, Response, NextFunction } from "express";
 import {
   collection,
   deleteDoc,
@@ -18,7 +18,7 @@ import {
   DocumentData,
 } from "firebase/firestore";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { adminDb, db, auth } from "./config/firebase"; // <<< Importar 'auth'
+import { adminDb, db, auth } from "./config/firebase";
 import { mercadoPagoService } from "./services/mercadoPagoService";
 import { resetDatabaseCollections } from "./utils/databaseAdmin";
 import {
@@ -26,8 +26,8 @@ import {
   isValidTime,
   validarDadosAgendamento,
 } from "./utils/validators";
-import morgan from "morgan"; // Para logs HTTP
-import * as admin from "firebase-admin"; // Import necessário para FieldValue
+import morgan from "morgan";
+import * as admin from "firebase-admin";
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -70,6 +70,79 @@ console.log("✅ Configuração do Mercado Pago inicializada");
 
 const FIREBASE_ENABLED = true; // Forçar Firebase habilitado
 console.log("🔥 Firebase FORÇADO como habilitado para debug");
+
+// --- DEFINIÇÃO DOS MIDDLEWARES ---
+// <<< AS DEFINIÇÕES COMPLETAS ESTÃO AGORA AQUI >>>
+const checkAuth = async (req: Request, res: Response, next: NextFunction) => {
+  const tokenId = req.headers.authorization?.split("Bearer ")[1];
+  const requestId = `req_${Date.now()}_${Math.random()
+    .toString(36)
+    .substring(2, 7)}`;
+  console.log(
+    `[${requestId}] Middleware checkAuth INI para ${req.method} ${req.originalUrl}`
+  );
+
+  if (!tokenId) {
+    console.warn(`[${requestId}] checkAuth FALHA: Token não fornecido.`);
+    return res
+      .status(401)
+      .json({ message: "Acesso não autorizado. Token não fornecido." });
+  }
+
+  try {
+    console.log(`[${requestId}] Verificando token ID...`);
+    const decodedToken = await auth.verifyIdToken(tokenId);
+    console.log(
+      `[${requestId}] Token verificado com sucesso para UID: ${decodedToken.uid}`
+    );
+    (req as any).user = decodedToken; // Anexa usuário à requisição
+    console.log(`[${requestId}] Middleware checkAuth FIM (Sucesso)`);
+    next();
+  } catch (error: any) {
+    console.error(
+      `[${requestId}] checkAuth ERRO: Falha na verificação do token.`,
+      error.message
+    );
+    if (error.code === "auth/id-token-expired") {
+      return res
+        .status(401)
+        .json({
+          message: "Token expirado. Faça login novamente.",
+          code: "token-expired",
+        });
+    }
+    return res
+      .status(401)
+      .json({ message: "Acesso não autorizado. Token inválido." });
+  }
+};
+
+const checkAdmin = (req: Request, res: Response, next: NextFunction) => {
+  const user = (req as any).user;
+  const requestId = `req_${Date.now()}_${Math.random()
+    .toString(36)
+    .substring(2, 7)}`;
+  console.log(
+    `[${requestId}] Middleware checkAdmin INI para ${req.method} ${req.originalUrl}`
+  );
+
+  if (user && user.admin === true) {
+    console.log(
+      `[${requestId}] checkAdmin SUCESSO: Usuário ${user.uid} é admin.`
+    );
+    next();
+  } else {
+    console.warn(
+      `[${requestId}] checkAdmin FALHA: Usuário ${user?.uid} não é admin ou não está autenticado corretamente.`
+    );
+    return res
+      .status(403)
+      .json({
+        message: "Acesso proibido. Requer privilégios de administrador.",
+      });
+  }
+};
+// --- FIM DA DEFINIÇÃO DOS MIDDLEWARES ---
 
 // Adicionar esta interface perto do topo do arquivo (após as importações)
 interface AgendamentoDebug {
