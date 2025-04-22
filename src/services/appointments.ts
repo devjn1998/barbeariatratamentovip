@@ -49,6 +49,31 @@ export async function getAppointmentsByDate(
 }
 
 /**
+ * Carrega agendamentos CONFIRMADOS de uma data específica
+ */
+export async function getConfirmedAppointmentsByDate(
+  date: string
+): Promise<NormalizedAppointment[]> {
+  try {
+    // Usa a rota GET /api/agendamentos com o novo parâmetro
+    const { data } = await api.get(
+      `/api/agendamentos?data=${date}&confirmado=true`
+    );
+
+    // Normalizar dados
+    return Array.isArray(data)
+      ? data.map((appointment) => adaptMixedAppointmentData(appointment)) // Reutiliza o adaptador existente
+      : [];
+  } catch (error) {
+    console.error(
+      `Erro ao carregar agendamentos CONFIRMADOS da data ${date}:`,
+      error
+    );
+    throw new Error("Não foi possível carregar os agendamentos confirmados");
+  }
+}
+
+/**
  * Cria um novo agendamento
  */
 export async function createAppointment(
@@ -56,24 +81,38 @@ export async function createAppointment(
 ): Promise<NormalizedAppointment> {
   try {
     // Preparar os dados para envio (formato esperado pelo backend)
+    // Garante que o objeto cliente está sendo enviado corretamente
     const payload = {
       data: appointment.date,
       horario: appointment.time,
       servico: appointment.service,
       preco: appointment.price,
       cliente: {
+        // <<< Garante o objeto aninhado
         nome: appointment.clientName,
         telefone: appointment.clientPhone,
-        email: appointment.clientEmail,
+        email: appointment.clientEmail, // Pode ser undefined
       },
-      status: appointment.status || "agendado",
+      status: appointment.status || "agendado", // Status enviado pelo form
+      // 'confirmado' será tratado pelo backend baseado no status
     };
 
+    console.log("[createAppointment Service] Enviando payload:", payload); // Log para depuração
+
     const { data } = await api.post("/api/agendamentos", payload);
+    console.log("[createAppointment Service] Resposta recebida:", data); // Log para depuração
+
+    // Usa o adaptador correto para a resposta do backend
     return adaptMixedAppointmentData(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao criar agendamento:", error);
-    throw new Error("Não foi possível criar o agendamento");
+    // Tenta extrair a mensagem de erro da resposta da API
+    const errorMessage =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.message ||
+      "Não foi possível criar o agendamento";
+    throw new Error(errorMessage);
   }
 }
 
@@ -177,38 +216,46 @@ export async function getOccupiedTimes(date: string): Promise<string[]> {
   }
 }
 
-// Corrigir a função de normalização para incluir o campo 'confirmado'
+/**
+ * Normaliza um objeto Appointment bruto para NormalizedAppointment.
+ * Garante que todos os campos esperados pelo frontend estejam presentes.
+ */
 export function normalizeAppointment(
   appointment: Appointment
 ): NormalizedAppointment {
+  // Lógica de normalização que existia antes
+  // (Baseado no código anterior ou na necessidade atual)
   return {
     id: appointment.id,
     date: appointment.data,
     time: appointment.horario,
     service: appointment.servico,
-    price: appointment.preco,
-    status: appointment.status,
+    price: appointment.preco || 0, // Garante um valor numérico
+    status: appointment.status || "Desconhecido", // Garante um status
 
+    // Campos formatados
     formattedDate: formatarData(appointment.data),
     formattedPrice: formatarPreco(appointment.preco),
     statusText: traduzirStatus(appointment.status),
 
-    clientName: appointment.cliente.nome,
-    clientPhone: appointment.cliente.telefone,
-    clientEmail: appointment.cliente.email,
-    paymentId: appointment.pagamentoId,
+    // Dados do cliente (garantindo que 'cliente' existe)
+    clientName: appointment.cliente?.nome || "Não informado",
+    clientPhone: appointment.cliente?.telefone || "Não informado",
+    clientEmail: appointment.cliente?.email, // Pode ser undefined
 
-    // Usar a propriedade confirmado existente ou inferir do status
+    // Outros campos
+    paymentId: appointment.pagamentoId,
     confirmado:
       appointment.confirmado !== undefined
         ? appointment.confirmado
-        : appointment.status === "confirmado",
+        : appointment.status === "confirmado" ||
+          appointment.status === "agendado", // Inferir se não explícito
 
     // Metadados
     createdAt: appointment.createdAt,
     updatedAt: appointment.updatedAt,
 
-    // Dados originais
+    // Dados originais para referência
     originalData: appointment,
   };
 }

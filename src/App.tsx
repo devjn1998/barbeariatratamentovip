@@ -16,6 +16,7 @@ import ServicesPage from "./services/page";
 import AdminBloqueiosPage from "./pages/admin/bloqueios/page";
 import AdminDashboard from "./pages/admin/Dashboard";
 import NotFoundPage from "./pages/NotFoundPage";
+import NovoAgendamento from "./pages/admin/NovoAgendamento";
 
 function App() {
   return (
@@ -93,6 +94,7 @@ function App() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="agendamentos" element={<Agendamentos />} />
+                <Route path="novo-agendamento" element={<NovoAgendamento />} />
                 <Route path="bloqueios" element={<AdminBloqueiosPage />} />
                 <Route path="limpeza-dados" element={<LimpezaDados />} />
               </Route>

@@ -834,138 +834,236 @@ async function criarOuAtualizarAgendamento(pagamento: any) {
   }
 }
 
-// Rota para buscar agendamentos por data
+// Rota GET para buscar agendamentos (com filtro opcional por data e status confirmado)
 app.get("/api/agendamentos", async (req: Request, res: Response) => {
   try {
-    const { data } = req.query;
-
+    const { data, confirmado } = req.query; // Pega 'data' e 'confirmado' da query string
     console.log(
-      `Recebida requisição para buscar agendamentos da data: ${data}`
+      `🔍 Buscando agendamentos. Filtros: Data=${data}, Confirmado=${confirmado}`
     );
 
-    // Validar formato de data (deve ser YYYY-MM-DD)
-    if (data && typeof data === "string") {
-      // Criar a consulta
-      const q = query(
-        collection(db, "agendamentos"),
-        where("date", "==", data) // Usando o campo date (padrão)
-      );
+    const agendamentosRef = collection(db, "agendamentos");
+    let q;
 
-      const querySnapshot = await getDocs(q);
-      // Resto do código...
+    // Constrói a query baseada nos filtros
+    if (data && confirmado === "true") {
+      // Filtra por data E confirmado = true
+      q = query(
+        agendamentosRef,
+        where("data", "==", data as string),
+        where("confirmado", "==", true) // <<< NOVO FILTRO
+      );
+      console.log(`   Querying by date (${data}) AND confirmado=true`);
+    } else if (data) {
+      // Filtra apenas por data
+      q = query(agendamentosRef, where("data", "==", data as string));
+      console.log(`   Querying by date (${data}) only`);
+    } else {
+      // Sem filtros (retorna todos - CUIDADO: pode ser muitos dados)
+      // Em produção, considere limitar ou exigir filtros
+      q = query(agendamentosRef);
+      console.log("   Querying all appointments (no filters)");
     }
-  } catch (error) {
-    // Tratamento de erro...
+
+    const querySnapshot = await getDocs(q);
+    const agendamentos = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    console.log(`✅ Retornando ${agendamentos.length} agendamentos.`);
+    return res.json(agendamentos);
+  } catch (error: any) {
+    console.error("❌ Erro ao buscar agendamentos:", error);
+    return res
+      .status(500)
+      .json({ error: "Erro ao buscar agendamentos", message: error.message });
   }
 });
 
-// Adicionar nova rota para criar agendamentos
+// Rota GET para buscar TODOS os agendamentos (mantida por compatibilidade, se necessário)
+// Considere remover ou proteger melhor se não for usada diretamente pelo admin otimizado
+app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
+  try {
+    console.log("🔍 Buscando todos os agendamentos");
+
+    // Buscar agendamentos no Firebase
+    const agendamentosRef = collection(db, "agendamentos");
+    const querySnapshot = await getDocs(agendamentosRef);
+
+    const agendamentos: AgendamentoDebug[] = [];
+
+    querySnapshot.forEach((doc: any) => {
+      const agendamento = doc.data();
+      agendamentos.push({
+        id: doc.id,
+        ...agendamento,
+      });
+    });
+
+    console.log(`✅ Total de ${agendamentos.length} agendamentos encontrados`);
+
+    return res.json(agendamentos);
+  } catch (error: any) {
+    console.error("❌ Erro ao buscar todos os agendamentos:", error);
+    return res.status(500).json({
+      error: "Erro ao buscar agendamentos",
+      details: error.message,
+    });
+  }
+});
+
+// Rota POST para CRIAR um novo agendamento (usada pelo formulário manual)
 app.post("/api/agendamentos", async (req: Request, res: Response) => {
+  const routeStartTime = Date.now();
+  console.log(`[Criar Agendamento INI ${routeStartTime}] Recebida requisição`);
   try {
     const dadosAgendamento = req.body;
-    console.log("📝 Criando novo agendamento:", dadosAgendamento);
-
-    // Validar dados com o novo validador
-    const validacao = validarDadosAgendamento(dadosAgendamento);
-    if (!validacao.valid) {
-      return res.status(400).json({
-        error: "Dados inválidos",
-        message: "Dados de agendamento inválidos",
-        details: validacao.errors,
-      });
-    }
-
-    // Validar formato da data e horário
-    if (!isValidDate(dadosAgendamento.data)) {
-      return res.status(400).json({
-        error: "Formato de data inválido",
-        message: "A data deve estar no formato YYYY-MM-DD",
-      });
-    }
-
-    if (!isValidTime(dadosAgendamento.horario)) {
-      return res.status(400).json({
-        error: "Formato de horário inválido",
-        message: "O horário deve estar no formato HH:MM",
-      });
-    }
-
-    // Verificar se o horário está disponível
-    const agendamentosRef = collection(db, "agendamentos");
-    const q = query(
-      agendamentosRef,
-      where("data", "==", dadosAgendamento.data),
-      where("horario", "==", dadosAgendamento.horario)
+    console.log(
+      `[Criar Agendamento ${routeStartTime}] Dados recebidos:`,
+      dadosAgendamento
     );
 
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      return res.status(409).json({
-        error: "Horário indisponível",
-        message: "Este horário já está reservado. Por favor, escolha outro.",
-      });
+    // 1. Validar os dados recebidos (essencial!)
+    // Adapte a validação conforme necessário para os campos manuais
+    const validacao = validarDadosAgendamento(dadosAgendamento); // Reutiliza ou cria uma validação específica
+    if (!validacao.valid) {
+      console.warn(
+        `[Criar Agendamento ${routeStartTime}] Dados inválidos:`,
+        validacao.errors
+      );
+      return res
+        .status(400)
+        .json({ message: "Dados inválidos.", errors: validacao.errors });
     }
 
-    // Criar ID único para o agendamento
-    const agendamentoId = Date.now().toString();
-
-    // Criar documento na coleção agendamentos
-    const agendamentoRef = doc(db, "agendamentos", agendamentoId);
-
-    // Preparar dados para salvar, incluindo timestamps
+    // 2. Preparar dados para salvar no Firestore
+    // Certifique-se que o formato está correto, incluindo o objeto 'cliente'
     const dadosParaSalvar = {
-      id: agendamentoId,
-      ...dadosAgendamento,
-      status: "agendado",
+      data: dadosAgendamento.data,
+      horario: dadosAgendamento.horario,
+      servico: dadosAgendamento.servico,
+      preco: dadosAgendamento.preco || 0, // Adicionar preço se informado, senão 0
+      cliente: {
+        nome: dadosAgendamento.cliente?.nome || dadosAgendamento.nome, // Acessa aninhado ou direto
+        telefone:
+          dadosAgendamento.cliente?.telefone || dadosAgendamento.telefone,
+        email: dadosAgendamento.cliente?.email || dadosAgendamento.email, // Opcional
+      },
+      status: dadosAgendamento.status || "agendado", // Status padrão ou o enviado
+      confirmado:
+        dadosAgendamento.confirmado === true ||
+        dadosAgendamento.status === "confirmado", // Define 'confirmado' baseado no status ou valor explícito
+      metodoPagamento: dadosAgendamento.metodoPagamento || "manual", // Indica que foi adicionado manualmente
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
 
-    // Salvar no Firebase
-    await setDoc(agendamentoRef, dadosParaSalvar);
+    // 3. Adicionar o documento ao Firestore
+    console.log(
+      `[Criar Agendamento ${routeStartTime}] Tentando adicionar ao Firestore...`
+    );
+    console.time(`[Criar Agendamento ${routeStartTime}] Add Firestore`);
+    const docRef = await addDoc(
+      collection(db, "agendamentos"),
+      dadosParaSalvar
+    );
+    console.timeEnd(`[Criar Agendamento ${routeStartTime}] Add Firestore`);
+    console.log(
+      `[Criar Agendamento FIM ${routeStartTime}] Agendamento criado com ID: ${
+        docRef.id
+      }. Tempo total: ${Date.now() - routeStartTime}ms`
+    );
 
-    console.log(`✅ Agendamento criado com sucesso. ID: ${agendamentoId}`);
-
-    // Retornar o agendamento criado com o ID
+    // 4. Retornar sucesso com o ID do novo agendamento
+    const novoAgendamento = (await getDoc(docRef)).data();
     return res.status(201).json({
-      id: agendamentoId,
-      ...dadosAgendamento,
-      status: "agendado",
-      message: "Agendamento criado com sucesso",
+      message: "Agendamento criado com sucesso!",
+      id: docRef.id,
+      ...novoAgendamento, // Retorna o agendamento criado
     });
   } catch (error: any) {
-    console.error("❌ Erro ao criar agendamento:", error);
+    console.error(
+      `[Criar Agendamento ERRO ${routeStartTime}] Erro ao criar agendamento:`,
+      error
+    );
     return res.status(500).json({
-      error: "Erro ao criar agendamento",
-      message:
-        error.message || "Ocorreu um erro interno ao processar sua solicitação",
+      message: "Erro interno ao criar agendamento.",
+      error: error.message,
     });
   }
 });
 
-// Rota para debug - listar todos agendamentos sem filtro
-app.get("/api/agendamentos/debug", async (req: Request, res: Response) => {
-  try {
-    const agendamentosRef = collection(db, "payments");
-    const snapshot = await getDocs(agendamentosRef);
+// Rota POST para criar agendamento PENDENTE (pagamento em dinheiro)
+// Mantenha esta rota como está, ela lida com o fluxo específico de pagamento pendente
+app.post(
+  "/api/agendamentos/criar-pendente",
+  async (req: Request, res: Response) => {
+    const routeStartTime = Date.now();
+    console.log(
+      `[Criar Pendente INÍCIO ${routeStartTime}] Recebida requisição:`,
+      req.body
+    );
 
-    const agendamentos: AgendamentoDebug[] = snapshot.docs.map((doc: any) => ({
-      id: doc.id,
-      ...doc.data(),
-      _path: doc.ref.path, // Incluir o caminho para debug
-      _exists: true,
-    }));
+    try {
+      const dadosAgendamento = req.body;
 
-    res.json({
-      count: agendamentos.length,
-      agendamentos: agendamentos,
-    });
-  } catch (error: any) {
-    console.error("Erro ao listar agendamentos:", error);
-    res.status(500).json({ error: error.message });
+      // 1. Validar os dados recebidos do frontend
+      const validacao = validarDadosAgendamento(dadosAgendamento);
+
+      if (!validacao.valid) {
+        console.warn(
+          `[Criar Pendente ${routeStartTime}] Dados inválidos:`,
+          validacao.errors
+        );
+        return res
+          .status(400)
+          .json({ message: "Dados inválidos.", errors: validacao.errors });
+      }
+
+      // 2. Preparar dados para salvar no Firestore com o novo campo booleano
+      const dadosParaSalvar = {
+        ...dadosAgendamento,
+        status: "aguardando pagamento", // Mantido por compatibilidade
+        confirmado: false, // NOVO CAMPO: false = aguardando pagamento
+        metodoPagamento: "dinheiro",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      // 3. Adicionar o documento ao Firestore
+      console.log(
+        `[Criar Pendente ${routeStartTime}] Tentando adicionar ao Firestore...`
+      );
+      console.time(`[Criar Pendente ${routeStartTime}] Add Firestore`);
+      const docRef = await addDoc(
+        collection(db, "agendamentos"),
+        dadosParaSalvar
+      );
+      console.timeEnd(`[Criar Pendente ${routeStartTime}] Add Firestore`);
+      console.log(
+        `[Criar Pendente FIM ${routeStartTime}] Agendamento pendente criado com ID: ${
+          docRef.id
+        }. Tempo total: ${Date.now() - routeStartTime}ms`
+      );
+
+      // 4. Retornar sucesso com o ID do novo agendamento
+      return res.status(201).json({
+        message: "Agendamento pendente criado com sucesso!",
+        id: docRef.id,
+      });
+    } catch (error: any) {
+      console.error(
+        `[Criar Pendente ERRO ${routeStartTime}] Erro ao criar agendamento pendente:`,
+        error
+      );
+      return res.status(500).json({
+        message: "Erro interno ao criar agendamento.",
+        error: error.message,
+      });
+    }
   }
-});
+);
 
 // Rota para atualizar horário de um agendamento/pagamento
 app.post("/api/pagamentos/:id/horario", async (req: Request, res: Response) => {
@@ -1142,37 +1240,6 @@ async function criarAgendamentoSeparado(
   }
 }
 */
-
-// Adicione esta rota antes da declaração de PORT
-app.get("/api/agendamentos/all", async (req: Request, res: Response) => {
-  try {
-    console.log("🔍 Buscando todos os agendamentos");
-
-    // Buscar agendamentos no Firebase
-    const agendamentosRef = collection(db, "agendamentos");
-    const querySnapshot = await getDocs(agendamentosRef);
-
-    const agendamentos: AgendamentoDebug[] = [];
-
-    querySnapshot.forEach((doc: any) => {
-      const agendamento = doc.data();
-      agendamentos.push({
-        id: doc.id,
-        ...agendamento,
-      });
-    });
-
-    console.log(`✅ Total de ${agendamentos.length} agendamentos encontrados`);
-
-    return res.json(agendamentos);
-  } catch (error: any) {
-    console.error("❌ Erro ao buscar todos os agendamentos:", error);
-    return res.status(500).json({
-      error: "Erro ao buscar agendamentos",
-      details: error.message,
-    });
-  }
-});
 
 // Adicione esta rota para verificar agendamentos por ID
 app.get("/api/agendamentos/:id", async (req: Request, res: Response) => {

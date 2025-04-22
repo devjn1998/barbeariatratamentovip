@@ -10,6 +10,7 @@ import { ReactComponent as CalendarIcon } from "../assets/img/icons/calendar.svg
 import { ReactComponent as ClockIcon } from "../assets/img/icons/clock.svg";
 import { ReactComponent as TrashIcon } from "../assets/img/icons/trash-2.svg";
 import { ReactComponent as LogOutIcon } from "../assets/img/icons/log-out.svg";
+import { ReactComponent as PlusSquareIcon } from "../assets/img/icons/plus-square.svg";
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -147,23 +148,15 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      <div className="pt-20 pb-12 container mx-auto px-4">
-        <ServerStatus />
-
-        <div className="flex flex-col lg:flex-row gap-6 mt-6">
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
-
-          <aside
-            className={`fixed lg:static top-20 bottom-0 w-64 bg-white rounded-r-lg lg:rounded-lg shadow-lg p-4 transition-all duration-300 transform z-20 ${
-              sidebarOpen ? "left-0" : "-left-64 lg:left-0"
-            }`}
-          >
-            <nav>
+      <div className="flex pt-16 lg:pt-20">
+        {/* Sidebar */}
+        <aside
+          className={`fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-64 bg-white shadow-lg transform ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } lg:translate-x-0 transition-transform duration-300 ease-in-out pt-16 lg:pt-4 flex flex-col`}
+        >
+          <div className="flex-grow p-4 overflow-y-auto">
+            <nav className="space-y-4">
               <div className="mb-6 pb-4 border-b border-gray-200">
                 <div className="flex items-center">
                   <svg
@@ -267,6 +260,27 @@ export default function AdminLayout() {
                     Limpeza de Dados
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    to="/admin/novo-agendamento"
+                    className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
+                      isActive("/admin/novo-agendamento")
+                        ? "bg-amber-500 text-white shadow-md"
+                        : "hover:bg-amber-100"
+                    }`}
+                  >
+                    <PlusSquareIcon
+                      className={`w-5 h-5 mr-3 stroke-current ${
+                        isActive("/admin/novo-agendamento")
+                          ? "text-white"
+                          : "text-amber-500"
+                      }`}
+                      strokeWidth="2"
+                      fill="none"
+                    />
+                    Novo Agendamento
+                  </Link>
+                </li>
               </ul>
 
               <div className="absolute bottom-4 left-4 right-4 lg:hidden">
@@ -283,8 +297,21 @@ export default function AdminLayout() {
                 </button>
               </div>
             </nav>
-          </aside>
+          </div>
+        </aside>
 
+        {/* Overlay for mobile */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black opacity-50 z-30 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          ></div>
+        )}
+
+        {/* Main Content Area */}
+        <div className="flex-1 p-6 lg:ml-64">
+          {" "}
+          {/* Ajuste ml se a sidebar for fixa */}
           <main className="flex-1 bg-white rounded-lg shadow-md p-6 min-h-[500px] transform transition-all duration-300">
             <div className="animate-fadeIn">
               <Outlet />
